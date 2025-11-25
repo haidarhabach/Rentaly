@@ -113,7 +113,7 @@
                         
                         
                         <div class="additional-links text-center">
-                            <span>Don't have an account? <a href="#" class="fw-bold">Sign up now</a></span>
+                            <span>Don't have an account? <a href="register.php" class="fw-bold">Sign up now</a></span>
                         </div>
                     </div>
                 </div>
