@@ -467,7 +467,7 @@
                         </form>
                         
                         <div class="additional-links text-center">
-                            <span>Already have an account? <a href="login.html" class="fw-bold">Sign in now</a></span>
+                            <span>Already have an account? <a href="login.php" class="fw-bold">Sign in now</a></span>
                         </div>
                     </div>
                 </div>
@@ -499,3 +499,4 @@
     </script>
 </body>
 </html>
+
