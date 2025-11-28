@@ -12,7 +12,7 @@
     <style>
         /* Force navbar background */
 .navbar {
-    background-color: #121212 !important;
+    background-color: #121212 ;
 }
 
 /* Ensure nav links are white */
@@ -50,6 +50,11 @@
 .topbar-right .social-icons a {
     color: white;
 }
+
+.login-section,.navbar{
+    background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)),
+                url('../assets/img/2.jpg') center/cover no-repeat fixed;
+} 
 
     </style>
 </head>
