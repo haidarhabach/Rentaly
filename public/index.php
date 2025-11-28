@@ -241,7 +241,7 @@ header.indexheader {
     <header class="indexheader">
         <nav class="navbar navbar-expand-lg navbar-light sticky-top">
             <div class="container">
-                <a class="navbar-brand" href="index.html">
+                <a class="navbar-brand" href="index.php">
                     <img src="../assets/img/logo.png" alt="Rentaly">
                 </a>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain"
@@ -297,3 +297,4 @@ header.indexheader {
 </body>
 
 </html>
+
