@@ -383,7 +383,7 @@
     <header class="Registerheader">
         <nav class="navbar navbar-expand-lg navbar-dark sticky-top">
             <div class="container">
-                <a class="navbar-brand" href="index.html">
+                <a class="navbar-brand" href="index.php">
                     <img src="../assets/img/logo-light.png" alt="Rentaly">
                 </a>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain" aria-controls="navbarMain" aria-expanded="false" aria-label="Toggle navigation">
@@ -518,3 +518,4 @@
     </script>
 </body>
 </html>
+
