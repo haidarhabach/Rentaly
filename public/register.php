@@ -24,7 +24,7 @@
         }
 
         #topbar {
-            background: #121212;
+            background: #121212 !important;
             color: #ffffff;
             padding: 5px 0;
             font-size: 14px;
@@ -324,6 +324,22 @@
                 display: none;
             }
         }
+
+        /* Force navbar background */
+.navbar {
+    background-color: #121212 !important;
+}
+
+/* Ensure nav links are white */
+.navbar .nav-link {
+    color: #ffffff !important;
+}
+
+/* Hover effect (green) */
+.navbar .nav-link:hover {
+    color: rgba(12, 233, 56, 0.867) !important;
+}
+
     </style>
 </head>
 <body>
@@ -361,7 +377,7 @@
     </div>
 
     <!-- Header -->
-    <header>
+    <header class="Registerheader">
         <nav class="navbar navbar-expand-lg navbar-dark sticky-top">
             <div class="container">
                 <a class="navbar-brand" href="index.html">
@@ -499,4 +515,3 @@
     </script>
 </body>
 </html>
-
