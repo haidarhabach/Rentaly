@@ -146,6 +146,11 @@
             align-items: center;
         }
 
+        .register-section, .navbar {
+            background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)),
+                        url('../assets/img/2.jpg') center/cover no-repeat fixed;
+        }
+
         .register-box {
             background: #fff;
             border-radius: 12px;
@@ -326,9 +331,7 @@
         }
 
         /* Force navbar background */
-.navbar {
-    background-color: #121212 !important;
-}
+
 
 /* Ensure nav links are white */
 .navbar .nav-link {
