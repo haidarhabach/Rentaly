@@ -8,6 +8,50 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../assets/css/style.css">
+
+    <style>
+        /* Force navbar background */
+.navbar {
+    background-color: #121212 !important;
+}
+
+/* Ensure nav links are white */
+.navbar .nav-link {
+    color: #ffffff !important;
+}
+
+/* Hover effect (green) */
+.navbar .nav-link:hover {
+    color: rgba(12, 233, 56, 0.867) !important;
+}
+/* Fix left side alignment */
+.topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 20px; /* spacing between items */
+}
+
+.topbar-left .topbar-widget {
+    display: flex;
+    align-items: center;
+}
+
+/* Fix right side social icons */
+.topbar-right {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.topbar-right .social-icons {
+    display: flex;
+    gap: 15px;
+}
+
+.topbar-right .social-icons a {
+    color: white;
+}
+
+    </style>
 </head>
 <body>
     <!-- Topbar -->
@@ -44,7 +88,7 @@
     </div>
 
     <!-- Header -->
-    <header>
+    <header class="Loginheader">
         <nav class="navbar navbar-expand-lg navbar-dark sticky-top">
             <div class="container">
                 <a class="navbar-brand" href="index.html">
