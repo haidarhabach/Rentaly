@@ -1,3 +1,69 @@
+<?php
+session_start();
+include '../includes/db.php';
+$error=$_SESSION["error"] ?? [];
+unset($_SESSION["error"]);
+if($_SERVER['REQUEST_METHOD']=="POST")
+{ 
+    
+    $password=$_POST["password"];
+    $email=$_POST["email"];
+    
+    if(!filter_var($email,FILTER_SANITIZE_EMAIL))
+    {
+        $error["not_valid_email"]=1;
+    }
+    if(filter_var($password,FILTER_SANITIZE_STRING))
+    {
+        if(!preg_match('/^[A-Za-z]{3,}.+$/',$password))
+        {
+            $error["not_match"]=1;
+        }
+    }
+    else 
+    {
+        $error["invalid_password"]=1;
+    }
+    if(isset($_POST["customer"]))
+    {
+    $stmt=$connect->prepare("SELECT  Password from customer where EMAIL =? ");
+    }
+    elseif (isset($_POST["employee"]))
+    {
+    $stmt=$connect->prepare("SELECT Password from employee where EMAIL =?");
+    }
+    $stmt->bind_param("s",$email);
+    $stmt->execute();
+    $result=$stmt->get_result();
+    if($result->num_rows==1)
+    {
+        $row=$result->fetch_assoc();
+        if(password_verify($password,$row["Password"])){
+        header("Location:index.php");
+        exit();
+    }
+
+    else {
+        $error["invalid_password"]=1;
+    }
+    }
+    else {
+        $error["not_exist_email"]=1;
+        
+    }
+
+    if(!empty($error))
+    {
+        $_SESSION["error"]=$error;
+        header("Location:login.php");
+        exit();
+    }
+}
+
+
+
+
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -133,14 +199,51 @@
                 <div class="col-lg-5 col-md-7">
                     <div class="login-box animated">
                         <h4>Login to Your Account</h4>
-                        <form id="form_register" method="post" action="account-dashboard.html">
+                        <!-- email backend  -->
+                        <form id="form_register" method="post" action="#">
                             <div class="mb-3">
                                 <label for="email" class="form-label">Email Address</label>
-                                <input type="email" name="email" id="email" class="form-control" placeholder="Enter your email" required />
+                                <input type="email" name="email" id="email" class="form-control" placeholder="Enter your email" required
+                                <?php 
+                                if(isset($error["not_valid_email"]) || isset($error["not_exist_email"]))
+                                {
+                                    echo "style=border-bottom-color:red;";
+                                }
+                                ?>/>
+                                <?php
+                                if(isset($error["not_valid_email"]))
+                                {
+                                    echo "<span style='color:red;fontsize=19'><i>Invalid Email</i></span>";
+                                }
+                                if(isset($error["not_exist_email"]))
+                                {
+                                    echo "<span style='color:red;fontsize=19'><i>register before login with new email</i></span>";
+                                }
+                                ?>
+                            <!-- Password Backend  -->
                             </div>
                             <div class="mb-3">
                                 <label for="password" class="form-label">Password</label>
-                                <input type="password" name="password" id="password" class="form-control" placeholder="Enter your password" required />
+                                <input type="password" name="password" id="password" class="form-control" placeholder="Enter your password" required 
+                                <?php
+                                if(isset($error["not_match"]) || isset($error["invalid_password"]))
+                                {
+                                    echo "style=border-bottom-color:red;";
+                                }
+                                ?>
+                                />
+                                <?php
+                                
+                                if(isset($error["not_match"]))
+                                {
+                                    echo "<span style='color:red;fontsize=19'><i>Password must contains : first at least 3 latter and follow with any character </i></span>";
+                                }
+                                if(isset($error["invalid_password"]))
+                                {
+                                    echo "<span style='color:red;fontsize=19'><i>Invalid Password</i></span>";
+                                }
+                                
+                                ?>
                                 
                             </div>
                             <div class="mb-3 form-check">
@@ -148,11 +251,11 @@
                                 <label class="form-check-label" for="rememberMe">Remember me</label>
                             </div>
                             <div class="mb-4 signin-buttons">
-    <button type="submit" class="btn-signin btn-customer w-100">
+    <button type="submit" name="customer" class="btn-signin btn-customer w-100">
         <i class="fas fa-user me-2"></i> Sign In as Customer
     </button>
 
-    <button type="submit" class="btn-signin btn-employee w-100 mt-3">
+    <button type="submit" name="employee" class="btn-signin btn-employee w-100 mt-3">
         <i class="fas fa-briefcase me-2"></i> Sign In as Employee
     </button>
 </div>
@@ -197,3 +300,4 @@
     </script>
 </body>
 </html>
+
