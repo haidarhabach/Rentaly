@@ -1,6 +1,33 @@
 <?php
-session_start();
 include '../includes/db.php';
+if(isset($_COOKIE["remember_token"]))
+{
+    $token = $_COOKIE["remember_token"];
+    $stmt=$connect->prepare("SELECT 1 from customer where remember_token=? and remember_expiry > NOW() ");
+    $stmt->bind_param("s",$token);
+    $stmt->execute();
+    $result=$stmt->get_result();
+    if($result->num_rows == 1)
+    {
+        header("Location:index.php");exit();
+    }
+    else {
+        //try for employee 
+        $stmt = $connect->prepare("SELECT 1 FROM employee WHERE remember_token=? and remember_expiry    >   now()");
+        $stmt->bind_param("s", $token);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        if ($res->num_rows == 1) {
+        header("Location:index.php");
+            exit();
+        }
+    }
+}
+
+
+
+session_start();
+
 $error=$_SESSION["error"] ?? [];
 unset($_SESSION["error"]);
 if($_SERVER['REQUEST_METHOD']=="POST")
@@ -39,6 +66,28 @@ if($_SERVER['REQUEST_METHOD']=="POST")
     {
         $row=$result->fetch_assoc();
         if(password_verify($password,$row["Password"])){
+        if (isset($_POST["rememberMe"])) {
+        //to remember for expiry cookie can set new cookie eash time also
+        $expire=date("Y-m-d H:i:s",time() + (86400 * 30));
+        // its like hash code 3am a3ml 16 byte binary w hwlon l hexa
+        $token = bin2hex(random_bytes(16));
+        //save for 30 days
+        setcookie("remember_token", $token, time() + (86400 * 30), "/");
+
+    // if customer save in customer db 
+    if(isset($_POST["customer"])) {
+        $stmt2 = $connect->prepare("UPDATE customer SET remember_token=?, remember_expiry=? WHERE EMAIL=?");
+
+    } 
+        //this if employee
+        elseif(isset($_POST["employee"])) {
+        $stmt2 = $connect->prepare("UPDATE employee SET remember_token=?, remember_expiry=? WHERE EMAIL=?");
+    }
+
+    $stmt2->bind_param("sss", $token,$expire, $email);
+    $stmt2->execute();
+}
+
         header("Location:index.php");
         exit();
     }
@@ -247,7 +296,7 @@ if($_SERVER['REQUEST_METHOD']=="POST")
                                 
                             </div>
                             <div class="mb-3 form-check">
-                                <input type="checkbox" class="form-check-input" id="rememberMe">
+                                <input type="checkbox" class="form-check-input" name="rememberMe" id="rememberMe">
                                 <label class="form-check-label" for="rememberMe">Remember me</label>
                             </div>
                             <div class="mb-4 signin-buttons">
