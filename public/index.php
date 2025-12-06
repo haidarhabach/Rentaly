@@ -675,7 +675,7 @@ body {
 <div id="vehicleCarousel" class="carousel slide" data-bs-ride="carousel">
     <div class="carousel-inner">
         <?php
-        $stmt = $connect->prepare("SELECT CARNAME, Seats, bags, Doors, car_type, daily_price, URL 
+        $stmt = $connect->prepare("SELECT MODEL,CARNAME, Seats, bags, Doors, car_type, daily_price, URL 
                                 FROM car AS c, car_photos AS cp 
                                 WHERE c.CARID = cp.CARID");
         $stmt->execute();
@@ -691,7 +691,7 @@ body {
             }
             ?>
             <div class="col-md-4 mb-4">
-                <div class="de-item mb30">
+                <div class="de-item <?= $row['MODEL'] ?>">
                     <div class="d-img">
                         <img src="../assets/img/Cars/<?= $row['URL'] ?>" class="img-fluid" alt="<?= $row['CARNAME'] ?>">
                     </div>
