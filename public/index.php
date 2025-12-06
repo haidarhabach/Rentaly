@@ -1,5 +1,5 @@
 <html>
-
+<?php include('../includes/db.php'); ?>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -657,7 +657,7 @@ body {
             </div>
         </section>
     </div>
-
+<!-- begin of backend -1-  -->
     <section id="section-cars" class="no-top py-5">
         <div class="container">
             <div class="row align-items-center">
@@ -670,167 +670,56 @@ body {
                 </div>
 
                 <div class="clearfix"></div>
-
+<!-- backend hasan -->
                 <!-- Bootstrap Carousel -->
-                <div id="vehicleCarousel" class="carousel slide" data-bs-ride="carousel">
-                    <div class="carousel-inner">
-                        <!-- Carousel Item 1 -->
-                        <div class="carousel-item active">
-                            <div class="row justify-content-center">
-                                <div class="col-md-4 mb-4 fade-in">
-                                    <div class="de-item mb30">
-                                        <div class="d-img">
-                                            <img src="../assets/img/Cars/jeep-renegade.jpg" class="img-fluid" alt="Jeep Renegade">
-                        
-                                            
-                                        </div>
-                                        <div class="d-info">
-                                            <div class="d-text">
-                                                <h4 class="car-title">Jeep Renegade</h4>
-                                                <div class="d-atr-group">
-                                                    <span class="d-atr"><i class="fas fa-user"></i>5 Seats</span>
-                                                    <span class="d-atr"><i class="fas fa-suitcase"></i>2 Bags</span>
-                                                    <span class="d-atr"><i class="fas fa-door-closed"></i>4 Doors</span>
-                                                    <span class="d-atr"><i class="fas fa-car"></i>SUV</span>
-                                                </div>
-                                                <div class="d-price">
-                                                    Daily rate from <span>$265</span>
-                                                    <a class="btn-main" href="car-single.html">Rent Now</a>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-md-4 mb-4 fade-in">
-                                    <div class="de-item mb30">
-                                        <div class="d-img">
-                                            <img src="../assets/img/Cars/bmw-m5.jpg" class="img-fluid" alt="BMW M2">
-                                            
-                                            
-                                        </div>
-                                        <div class="d-info">
-                                            <div class="d-text">
-                                                <h4 class="car-title">BMW M2</h4>
-                                                <div class="d-atr-group">
-                                                    <span class="d-atr"><i class="fas fa-user"></i>5 Seats</span>
-                                                    <span class="d-atr"><i class="fas fa-suitcase"></i>2 Bags</span>
-                                                    <span class="d-atr"><i class="fas fa-door-closed"></i>4 Doors</span>
-                                                    <span class="d-atr"><i class="fas fa-car"></i>Sedan</span>
-                                                </div>
-                                                <div class="d-price">
-                                                    Daily rate from <span>$244</span>
-                                                    <a class="btn-main" href="car-single.html">Rent Now</a>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-md-4 mb-4 fade-in">
-                                    <div class="de-item mb30">
-                                        <div class="d-img">
-                                            <img src="../assets/img/Cars/ferrari-enzo.jpg" class="img-fluid" alt="Ferrari Enzo">
-                                            
-                                        
-                                        </div>
-                                        <div class="d-info">
-                                            <div class="d-text">
-                                                <h4 class="car-title">Ferrari Enzo</h4>
-                                                <div class="d-atr-group">
-                                                    <span class="d-atr"><i class="fas fa-user"></i>2 Seats</span>
-                                                    <span class="d-atr"><i class="fas fa-suitcase"></i>1 Bag</span>
-                                                    <span class="d-atr"><i class="fas fa-door-closed"></i>2 Doors</span>
-                                                    <span class="d-atr"><i class="fas fa-car"></i>Sports</span>
-                                                </div>
-                                                <div class="d-price">
-                                                    Daily rate from <span>$167</span>
-                                                    <a class="btn-main" href="car-single.html">Rent Now</a>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
+<div id="vehicleCarousel" class="carousel slide" data-bs-ride="carousel">
+    <div class="carousel-inner">
+        <?php
+        $stmt = $connect->prepare("SELECT CARNAME, Seats, bags, Doors, car_type, daily_price, URL 
+                                FROM car AS c, car_photos AS cp 
+                                WHERE c.CARID = cp.CARID");
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        $count = 0;
+        $active_set = false;
+        echo '<div class="carousel-item '.($active_set ? '' : 'active').'"><div class="row">';
+        while($row = $result->fetch_assoc()) {
+            if($count > 0 && $count % 3 == 0) { 
+                echo '</div></div>';
+                echo '<div class="carousel-item"><div class="row">'; 
+            }
+            ?>
+            <div class="col-md-4 mb-4">
+                <div class="de-item mb30">
+                    <div class="d-img">
+                        <img src="../assets/img/Cars/<?= $row['URL'] ?>" class="img-fluid" alt="<?= $row['CARNAME'] ?>">
+                    </div>
+                    <div class="d-info">
+                        <div class="d-text">
+                            <h4 class="car-title"><?= $row['CARNAME'] ?></h4>
+                            <div class="d-atr-group">
+                                <span class="d-atr"><i class="fas fa-user"></i> <?= $row['Seats'] ?></span>
+                                <span class="d-atr"><i class="fas fa-suitcase"></i> <?= $row['bags'] ?></span>
+                                <span class="d-atr"><i class="fas fa-door-closed"></i> <?= $row['Doors'] ?></span>
+                                <span class="d-atr"><i class="fas fa-car"></i> <?= $row['car_type'] ?></span>
                             </div>
-                        </div>
-                        
-                        <!-- Carousel Item 2 -->
-                        <div class="carousel-item">
-                            <div class="row justify-content-center">
-                                <div class="col-md-4 mb-4 fade-in">
-                                    <div class="de-item mb30">
-                                        <div class="d-img">
-                                            <img src="../assets/img/Cars/ford-raptor.jpg" class="img-fluid" alt="Ford Raptor">
-                                            
-                                            
-                                        </div>
-                                        <div class="d-info">
-                                            <div class="d-text">
-                                                <h4 class="car-title">Ford Raptor</h4>
-                                                <div class="d-atr-group">
-                                                    <span class="d-atr"><i class="fas fa-user"></i>5 Seats</span>
-                                                    <span class="d-atr"><i class="fas fa-suitcase"></i>3 Bags</span>
-                                                    <span class="d-atr"><i class="fas fa-door-closed"></i>4 Doors</span>
-                                                    <span class="d-atr"><i class="fas fa-car"></i>Truck</span>
-                                                </div>
-                                                <div class="d-price">
-                                                    Daily rate from <span>$147</span>
-                                                    <a class="btn-main" href="car-single.html">Rent Now</a>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-md-4 mb-4 fade-in">
-                                    <div class="de-item mb30">
-                                        <div class="d-img">
-                                            <img src="../assets/img/Cars/mini-cooper.jpg" class="img-fluid" alt="Mini Cooper">
-                                            
-                                            
-                                        </div>
-                                        <div class="d-info">
-                                            <div class="d-text">
-                                                <h4 class="car-title">Mini Cooper</h4>
-                                                <div class="d-atr-group">
-                                                    <span class="d-atr"><i class="fas fa-user"></i>4 Seats</span>
-                                                    <span class="d-atr"><i class="fas fa-suitcase"></i>2 Bags</span>
-                                                    <span class="d-atr"><i class="fas fa-door-closed"></i>2 Doors</span>
-                                                    <span class="d-atr"><i class="fas fa-car"></i>Hatchback</span>
-                                                </div>
-                                                <div class="d-price">
-                                                    Daily rate from <span>$238</span>
-                                                    <a class="btn-main" href="car-single.html">Rent Now</a>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-md-4 mb-4 fade-in">
-                                    <div class="de-item mb30">
-                                        <div class="d-img">
-                                            <img src="../assets/img/Cars/vw-polo.jpg" class="img-fluid" alt="VW Polo">
-                                            
-                                            
-                                        </div>
-                                        <div class="d-info">
-                                            <div class="d-text">
-                                                <h4>VW Polo</h4>
-                                                <div class="d-atr-group">
-                                                    <span class="d-atr"><i class="fas fa-user"></i>5 Seats</span>
-                                                    <span class="d-atr"><i class="fas fa-suitcase"></i>2 Bags</span>
-                                                    <span class="d-atr"><i class="fas fa-door-closed"></i>4 Doors</span>
-                                                    <span class="d-atr"><i class="fas fa-car"></i>Hatchback</span>
-                                                </div>
-                                                <div class="d-price">
-                                                    Daily rate from <span>$106</span>
-                                                    <a class="btn-main" href="car-single.html">Rent Now</a>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
+                            <div class="d-price">
+                                Daily rate from <span> <?= $row['daily_price'] ?>$</span>
+                                <a class="btn-main" href="car-single.html">Rent Now</a>
                             </div>
                         </div>
                     </div>
-                    
+                </div>
+            </div>
+            <?php
+            $count++;
+            $active_set = true;
+        }
+        echo '</div></div>';
+        ?>
+    </div>
+
                     <!-- Carousel Controls -->
                     <button class="carousel-control-prev" type="button" data-bs-target="#vehicleCarousel" data-bs-slide="prev">
                         <span class="carousel-control-prev-icon" aria-hidden="true"></span>
@@ -850,7 +739,7 @@ body {
             </div>
         </div>
     </section>
-
+<!-- end of backend -1- -->
 
     <!-- Image with Tabs Section -->
     <section id="hero-section">
