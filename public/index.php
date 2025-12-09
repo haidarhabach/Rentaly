@@ -672,12 +672,15 @@ body {
                 <div class="clearfix"></div>
 <!-- backend hasan -->
                 <!-- Bootstrap Carousel -->
+            <!-- NOTE NOTE ANA 3AMEL L available_cars AS VIEW LKEL STATUS = AVAILABLE -->
 <div id="vehicleCarousel" class="carousel slide" data-bs-ride="carousel">
     <div class="carousel-inner">
         <?php
-        $stmt = $connect->prepare("SELECT MODEL,CARNAME, Seats, bags, Doors, car_type, daily_price, URL 
-                                FROM car AS c, car_photos AS cp 
-                                WHERE c.CARID = cp.CARID");
+        $stmt = $connect->prepare("SELECT MODEL,c.CARNAME, Seats, bags, Doors, car_type, daily_price, URL 
+                                FROM car AS c, car_photos AS cp , available_cars as a 
+                                WHERE c.CARID = cp.CARID
+                                and a.CARID=c.CARID;
+                                ");
         $stmt->execute();
         $result = $stmt->get_result();
 
