@@ -799,6 +799,245 @@ body {
         </div>
     </div>
 </section>
+
+    <!-- News Section -->
+    <section id="section-news">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-lg-6 offset-lg-3 text-center">
+                    <div class="section-title">
+                        <h2>Latest News</h2>
+                        <p>Breaking news, fresh perspectives, and in-depth coverage - stay ahead with our latest news, insights, and analysis.</p>
+                        <div class="spacer-20"></div>
+                    </div>
+                </div>
+                
+                <!-- News Card 1 -->
+                <div class="col-lg-4 mb10">
+                    <div class="news-card">
+                        <div class="news-image">
+                            <div class="date-box">
+                                <div class="m">10</div>
+                                <div class="d">MAR</div>
+                            </div>
+                            <img src="https://images.unsplash.com/photo-1488646953014-85cb44e25828?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=800&q=80" alt="Travel Experience">
+                        </div>
+                        <div class="news-content">
+                            <h4><a href="news-single.html">Enjoy Best Travel Experience</a></h4>
+                            <p>Discover how to make the most of your travels with our expert tips and insights for unforgettable experiences.</p>
+                            <a class="btn-main" href="#">Read More</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- News Card 2 -->
+                <div class="col-lg-4 mb10">
+                    <div class="news-card">
+                        <div class="news-image">
+                            <div class="date-box">
+                                <div class="m">12</div>
+                                <div class="d">MAR</div>
+                            </div>
+                            <img src="https://images.unsplash.com/photo-1553440569-bcc63803a83d?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=800&q=80" alt="Car Rental Future">
+                        </div>
+                        <div class="news-content">
+                            <h4><a href="news-single.html">The Future of Car Rental</a></h4>
+                            <p>Explore the latest trends and innovations shaping the future of the car rental industry worldwide.</p>
+                            <a class="btn-main" href="#">Read More</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- News Card 3 -->
+                <div class="col-lg-4 mb10">
+                    <div class="news-card">
+                        <div class="news-image">
+                            <div class="date-box">
+                                <div class="m">14</div>
+                                <div class="d">MAR</div>
+                            </div>
+                            <img src="https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=800&q=80" alt="Holiday Tips">
+                        </div>
+                        <div class="news-content">
+                            <h4><a href="news-single.html">Holiday Tips For Backpackers</a></h4>
+                            <p>Essential tips and tricks for backpackers looking to make the most of their holiday adventures.</p>
+                            <a class="btn-main" href="#">Read More</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Fun Facts Section -->
+    <section id="section-fun-facts">
+        <div class="container">
+            <div class="row g-4">
+                <!-- Stat 1 -->
+                <div class="col-md-3 col-sm-6">
+                    <div class="stat-item fadeInUp">
+                        <div class="stat-number" data-count="15425">0</div>
+                        <div class="stat-title">Trips Powered</div>
+                        <p class="stat-description">Helping travelers explore the world with reliable transportation solutions and excellent service.</p>
+                    </div>
+                </div>
+                
+                <!-- Stat 2 -->
+                <div class="col-md-3 col-sm-6">
+                    <div class="stat-item fadeInUp">
+                        <div class="stat-number" data-count="8745">0</div>
+                        <div class="stat-title">Happy Customers</div>
+                        <p class="stat-description">Building lasting relationships with satisfied customers who trust us for their travel needs.</p>
+                    </div>
+                </div>
+                
+                <!-- Stat 3 -->
+                <div class="col-md-3 col-sm-6">
+                    <div class="stat-item fadeInUp">
+                        <div class="stat-number" data-count="235">0</div>
+                        <div class="stat-title">Fleet Vehicles</div>
+                        <p class="stat-description">Maintaining a diverse and modern fleet to meet every traveler's preferences and requirements.</p>
+                    </div>
+                </div>
+                
+                <!-- Stat 4 -->
+                <div class="col-md-3 col-sm-6">
+                    <div class="stat-item fadeInUp">
+                        <div class="stat-number" data-count="15">0</div>
+                        <div class="stat-title">Years Experience</div>
+                        <p class="stat-description">Over a decade of excellence in providing premium transportation and travel services.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Marquee Section - Single Line -->
+    <section class="marquee-section">
+        <div class="container-fluid px-0">
+            <div class="marquee-wrapper">
+                <div class="marquee-overlay-left"></div>
+                <div class="marquee-overlay-right"></div>
+                
+                <!-- Single Marquee Line -->
+                <div class="marquee-container">
+                    <!-- Original Items -->
+                    <span class="marquee-item">SUV <span class="marquee-dot"></span></span>
+                    <span class="marquee-item">Hatchback <span class="marquee-dot"></span></span>
+                    <span class="marquee-item">Crossover <span class="marquee-dot"></span></span>
+                    <span class="marquee-item">Convertible <span class="marquee-dot"></span></span>
+                    <span class="marquee-item">Sedan <span class="marquee-dot"></span></span>
+                    <span class="marquee-item">Sports Car <span class="marquee-dot"></span></span>
+                    <span class="marquee-item">Coupe <span class="marquee-dot"></span></span>
+                    <span class="marquee-item">Minivan <span class="marquee-dot"></span></span>
+                    <span class="marquee-item">Station Wagon <span class="marquee-dot"></span></span>
+                    <span class="marquee-item">Truck <span class="marquee-dot"></span></span>
+                    <span class="marquee-item">Minivans <span class="marquee-dot"></span></span>
+                    <span class="marquee-item">Exotic Cars <span class="marquee-dot"></span></span>
+                    
+                    <!-- Duplicate Items for Seamless Loop -->
+                    <span class="marquee-item">SUV <span class="marquee-dot"></span></span>
+                    <span class="marquee-item">Hatchback <span class="marquee-dot"></span></span>
+                    <span class="marquee-item">Crossover <span class="marquee-dot"></span></span>
+                    <span class="marquee-item">Convertible <span class="marquee-dot"></span></span>
+                    <span class="marquee-item">Sedan <span class="marquee-dot"></span></span>
+                    <span class="marquee-item">Sports Car <span class="marquee-dot"></span></span>
+                    <span class="marquee-item">Coupe <span class="marquee-dot"></span></span>
+                    <span class="marquee-item">Minivan <span class="marquee-dot"></span></span>
+                    <span class="marquee-item">Station Wagon <span class="marquee-dot"></span></span>
+                    <span class="marquee-item">Truck <span class="marquee-dot"></span></span>
+                    <span class="marquee-item">Minivans <span class="marquee-dot"></span></span>
+                    <span class="marquee-item">Exotic Cars <span class="marquee-dot"></span></span>
+                    
+                    <!-- Additional Duplicate for Better Loop -->
+                    <span class="marquee-item">SUV <span class="marquee-dot"></span></span>
+                    <span class="marquee-item">Hatchback <span class="marquee-dot"></span></span>
+                    <span class="marquee-item">Crossover <span class="marquee-dot"></span></span>
+                    <span class="marquee-item">Convertible <span class="marquee-dot"></span></span>
+                    <span class="marquee-item">Sedan <span class="marquee-dot"></span></span>
+                    <span class="marquee-item">Sports Car <span class="marquee-dot"></span></span>
+                    <span class="marquee-item">Coupe <span class="marquee-dot"></span></span>
+                    <span class="marquee-item">Minivan <span class="marquee-dot"></span></span>
+                    <span class="marquee-item">Station Wagon <span class="marquee-dot"></span></span>
+                    <span class="marquee-item">Truck <span class="marquee-dot"></span></span>
+                    <span class="marquee-item">Minivans <span class="marquee-dot"></span></span>
+                    <span class="marquee-item">Exotic Cars <span class="marquee-dot"></span></span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer Section -->
+    <footer class="footer-main">
+        <div class="container">
+            <div class="row g-4">
+                <!-- About Column -->
+                <div class="col-lg-3 col-md-6">
+                    <div class="footer-widget">
+                        <h5>About Rentaly</h5>
+                        <p>Where quality meets affordability. We understand the importance of a smooth and enjoyable journey without the burden of excessive costs. That's why we have meticulously crafted our offerings to provide you with top-notch vehicles at minimum expense.</p>
+                    </div>
+                </div>
+                
+                <!-- Contact Info Column -->
+                <div class="col-lg-3 col-md-6">
+                    <div class="footer-widget">
+                        <h5>Contact Info</h5>
+                        <ul class="contact-info">
+                            <li>
+                                <i class="fas fa-map-marker-alt"></i>
+                                <span>08 W 36th St, New York, NY 10001</span>
+                            </li>
+                            <li>
+                                <i class="fas fa-phone"></i>
+                                <span>+1 333 9296</span>
+                            </li>
+                            <li>
+                                <i class="fas fa-envelope"></i>
+                                <a href="mailto:contact@example.com">contact@rentaly.com</a>
+                            </li>
+                            
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Quick Links Column -->
+                <div class="col-lg-3 col-md-6">
+                    <div class="footer-widget">
+                        <h5>Quick Links</h5>
+                        <ul class="quick-links">
+                            <li><a href="#">Blog</a></li>
+                            <li><a href="#">News</a></li>
+                            <li><a href="#">Booking</a></li>
+                            <li><a href="#">Fleet</a></li>
+                            <li><a href="#">Contact</a></li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Social Network Column -->
+                <div class="col-lg-3 col-md-6">
+                    <div class="footer-widget">
+                        <h5>Social Network</h5>
+                        <p>Follow us on social media to stay updated with our latest offers and news.</p>
+                        <div class="social-icons1">
+                            <a href="#"><i class="fab fa-facebook-f"></i></a>
+                            <a href="#"><i class="fab fa-twitter"></i></a>
+                            <a href="#"><i class="fab fa-linkedin-in"></i></a>
+                            <a href="#"><i class="fab fa-pinterest-p"></i></a>
+                            <a href="#"><i class="fab fa-instagram"></i></a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        
+
+    <!-- Back to Top Button -->
+    <a href="#" class="back-to-top" id="back-to-top">
+        <i class="fas fa-arrow-up"></i>
+    </a>
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script>
@@ -817,6 +1056,164 @@ body {
             });
         });
     </script>
+        <script>
+        // Animated Counter
+        function animateCounter(element) {
+            const target = parseInt(element.getAttribute('data-count'));
+            const duration = 2000; // 2 seconds
+            const increment = target / (duration / 16); // 60fps
+            let current = 0;
+            
+            const timer = setInterval(() => {
+                current += increment;
+                if (current >= target) {
+                    element.textContent = target.toLocaleString();
+                    clearInterval(timer);
+                } else {
+                    element.textContent = Math.floor(current).toLocaleString();
+                }
+            }, 16);
+        }
+        
+        // Initialize counters when section is in view
+        function initCounters() {
+            const statNumbers = document.querySelectorAll('.stat-number');
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const element = entry.target;
+                        if (!element.classList.contains('animated')) {
+                            animateCounter(element);
+                            element.classList.add('animated');
+                        }
+                    }
+                });
+            }, { threshold: 0.5 });
+            
+            statNumbers.forEach(stat => observer.observe(stat));
+        }
+        
+        // Add animation classes on scroll
+        function animateOnScroll() {
+            const statItems = document.querySelectorAll('.stat-item');
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('fadeInUp');
+                    }
+                });
+            }, { threshold: 0.1 });
+            
+            statItems.forEach(item => observer.observe(item));
+        }
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            initCounters();
+            animateOnScroll();
+            
+            // Add hover effects to news cards
+            const newsCards = document.querySelectorAll('.news-card');
+            newsCards.forEach(card => {
+                card.addEventListener('mouseenter', function() {
+                    this.style.transform = 'translateY(-10px)';
+                    this.style.boxShadow = '0 15px 40px rgba(0, 0, 0, 0.12)';
+                });
+                
+                card.addEventListener('mouseleave', function() {
+                    this.style.transform = 'translateY(0)';
+                    this.style.boxShadow = '0 10px 30px rgba(0, 0, 0, 0.08)';
+                });
+            });
+            
+            // News card image hover effect
+            const newsImages = document.querySelectorAll('.news-image img');
+            newsImages.forEach(img => {
+                const parentCard = img.closest('.news-card');
+                
+                parentCard.addEventListener('mouseenter', function() {
+                    img.style.transform = 'scale(1.05)';
+                });
+                
+                parentCard.addEventListener('mouseleave', function() {
+                    img.style.transform = 'scale(1)';
+                });
+            });
+        });
+    </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const backToTop = document.getElementById('back-to-top');
+            
+            // Show/hide back to top button on scroll
+            window.addEventListener('scroll', function() {
+                if (window.pageYOffset > 300) {
+                    backToTop.classList.add('show');
+                } else {
+                    backToTop.classList.remove('show');
+                }
+            });
+            
+            // Smooth scroll to top
+            backToTop.addEventListener('click', function(e) {
+                e.preventDefault();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+            
+            // Marquee item hover effects
+            const marqueeItems = document.querySelectorAll('.marquee-item');
+            marqueeItems.forEach(item => {
+                item.addEventListener('mouseenter', function() {
+                    this.style.color = '#2ecc71';
+                    this.style.transform = 'scale(1.08)';
+                });
+                
+                item.addEventListener('mouseleave', function() {
+                    this.style.color = '';
+                    this.style.transform = '';
+                });
+            });
+            
+            // Quick links hover effect
+            const quickLinks = document.querySelectorAll('.quick-links a');
+            quickLinks.forEach(link => {
+                link.addEventListener('mouseenter', function() {
+                    this.style.color = '#2ecc71';
+                    this.style.paddingLeft = '10px';
+                });
+                
+                link.addEventListener('mouseleave', function() {
+                    this.style.color = '';
+                    this.style.paddingLeft = '';
+                });
+            });
+            
+            // Add animation to marquee section when in view
+            const marqueeSection = document.querySelector('.marquee-section');
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        marqueeSection.classList.add('fadeInRight');
+                    }
+                });
+            }, { threshold: 0.1 });
+            
+            observer.observe(marqueeSection);
+            
+            // Pause/play marquee on hover
+            const marqueeWrapper = document.querySelector('.marquee-wrapper');
+            const marqueeContainer = document.querySelector('.marquee-container');
+            
+            marqueeWrapper.addEventListener('mouseenter', function() {
+                marqueeContainer.style.animationPlayState = 'paused';
+            });
+            
+            marqueeWrapper.addEventListener('mouseleave', function() {
+                marqueeContainer.style.animationPlayState = 'running';
+            });
+        });
+    </script>
 </body>
 
 </html>
+
