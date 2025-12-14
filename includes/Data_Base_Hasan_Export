@@ -28,7 +28,7 @@ SET @saved_cs_client     = @@character_set_client;
  1 AS `CARNAME`,
  1 AS `BRAND`,
  1 AS `HORSE_POWER`,
- 1 AS `YEAR`,
+ 1 AS `CAR_YEAR`,
  1 AS `PLATENUMBER`*/;
 SET character_set_client = @saved_cs_client;
 
@@ -46,13 +46,16 @@ CREATE TABLE `car` (
   `BRAND` varchar(20) DEFAULT NULL,
   `HORSE_POWER` int DEFAULT NULL,
   `CAR_STATUS` varchar(20) DEFAULT NULL,
-  `YEAR` int DEFAULT NULL,
+  `CAR_YEAR` int DEFAULT NULL,
   `PLATENUMBER` varchar(15) DEFAULT NULL,
   `daily_price` int NOT NULL,
   `car_type` varchar(20) NOT NULL,
   `bags` varchar(20) NOT NULL,
   `Doors` varchar(5) NOT NULL,
   `Seats` varchar(5) NOT NULL,
+  `Quantity` int NOT NULL,
+  `description` varchar(250) DEFAULT NULL,
+  `color` varchar(25) DEFAULT NULL,
   PRIMARY KEY (`CARID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -63,7 +66,7 @@ CREATE TABLE `car` (
 
 LOCK TABLES `car` WRITE;
 /*!40000 ALTER TABLE `car` DISABLE KEYS */;
-INSERT INTO `car` VALUES ('1','Raptor','Ford Raptor','Ford',450,'Available',2022,'ABC123',147,'SUV','2','4','5'),('2','M5','BMW M5','BMW',600,'Available',2021,'BMW555',200,'Sedan','2','4','5'),('3','Enzo','Ferrari Enzo','Ferrari',650,'Available',2020,'FER777',350,'Sport','1','2','2'),('4','Renegade','Jeep Renegade','Jeep',180,'Available',2019,'JEE111',256,'SUV','2','4','5'),('5','Cooper','Mini Cooper','Mini',136,'Available',2021,'MIN222',238,'Hatchback','2','2','4'),('6','Polo','VW Polo','Volkswagen',110,'Available',2018,'VW333',106,'Hatchback','2','4','5');
+INSERT INTO `car` VALUES ('1','Raptor','Ford Raptor','Ford',450,'Available',2022,'ABC123',147,'SUV','2','4','5',11,NULL,NULL),('2','M5','BMW M5','BMW',600,'Available',2021,'BMW555',200,'Sedan','2','4','5',10,NULL,NULL),('3','Enzo','Ferrari Enzo','Ferrari',650,'Available',2020,'FER777',350,'Sport','1','2','2',10,NULL,NULL),('4','Renegade','Jeep Renegade','Jeep',180,'Available',2019,'JEE111',256,'SUV','2','4','5',10,NULL,NULL),('5','Cooper','Mini Cooper','Mini',136,'Rented',2021,'MIN222',238,'Hatchback','2','2','4',0,NULL,NULL),('6','Polo','VW Polo','Volkswagen',110,'Available',2018,'VW333',106,'Hatchback','2','4','5',32,NULL,NULL);
 /*!40000 ALTER TABLE `car` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -123,7 +126,7 @@ CREATE TABLE `customer` (
 
 LOCK TABLES `customer` WRITE;
 /*!40000 ALTER TABLE `customer` DISABLE KEYS */;
-INSERT INTO `customer` VALUES ('CU003','Omar Khaled',96170000005,'Jnah, Beirut','DL54321','omar@example.com','',NULL,NULL),('CUS001','Ali Youssef',70123456,'Beirut - Ouzaii','DL-987654','Ali.Youssef123@example.com','',NULL,NULL),('CUS002','Hussein Fakih',76123456,'Beirut - ZakAlBlat','DL-123987','Husein.Fakih123@example.com','$2y$10$aTyPYpoOHiD2Tr7/R90NLOhqoaOIlPZWUaRDAMUkubwIO35UVlotC',NULL,NULL),('CUS003','Mohamad Younes',71111222,'Saida - Corniche','DL-456321','m.younes@example.com','',NULL,NULL),('CUS004','Joseph Atieh',76555111,'Beirut - Achrafieh','DL-741258','Jrej123@@example.com','',NULL,NULL),('CUS005','Rami Kassem',78965412,'Tyre - Bustan','DL-159753','rami.kassem@example.com','',NULL,NULL),('CUS006','Maya Fares',76333111,'Baabda - Louaizeh','DL-852456','maya.fares@example.com','',NULL,NULL),('CUS007','Omar Chami',70100555,'Beirut - Tarik Jdideh','DL-963258','omar.chami@example.com','',NULL,NULL),('CUS008','Noor Barakat',71666222,'Jounieh - Maameltein','DL-258147','noor.barakat@example.com','',NULL,NULL),('CUS009','Kamal Darwish',78999888,'Zahle - Main St.','DL-357159','kamal.d@example.com','',NULL,NULL),('CUS010','Lina Khoury',76004455,'Byblos - Old Town','DL-444777','lina.khoury@example.com','',NULL,NULL);
+INSERT INTO `customer` VALUES ('CU003','Omar Khaled',96170000005,'Jnah, Beirut','DL54321','omar@example.com','$2y$10$aTyPYpoOHiD2Tr7/R90NLOhqoaOIlPZWUaRDAMUkubwIO35UVlotC',NULL,NULL),('CUS001','Ali Youssef',70123456,'Beirut - Ouzaii','DL-987654','Ali.Youssef123@example.com','Hasan123',NULL,NULL),('CUS002','Hussein Fakih',76123456,'Beirut - ZakAlBlat','DL-123987','Husein.Fakih123@example.com','hsein123',NULL,NULL),('CUS003','Mohamad Younes',71111222,'Saida - Corniche','DL-456321','m.younes@example.com','$2y$10$XqeGwFFYAwaS9PTY2KWajey0sPVSzg0ExyCTsc5L0bD3x0WZX.fDu','17f2c4197a23fdc8457d1a3e2364838a','2026-01-13'),('CUS004','Joseph Atieh',76555111,'Beirut - Achrafieh','DL-741258','Jrej123@@example.com','',NULL,NULL),('CUS005','Rami Kassem',78965412,'Tyre - Bustan','DL-159753','rami.kassem@example.com','',NULL,NULL),('CUS006','Maya Fares',76333111,'Baabda - Louaizeh','DL-852456','maya.fares@example.com','',NULL,NULL),('CUS007','Omar Chami',70100555,'Beirut - Tarik Jdideh','DL-963258','omar.chami@example.com','',NULL,NULL),('CUS008','Noor Barakat',71666222,'Jounieh - Maameltein','DL-258147','noor.barakat@example.com','',NULL,NULL),('CUS009','Kamal Darwish',78999888,'Zahle - Main St.','DL-357159','kamal.d@example.com','',NULL,NULL),('CUS010','Lina Khoury',76004455,'Byblos - Old Town','DL-444777','lina.khoury@example.com','',NULL,NULL);
 /*!40000 ALTER TABLE `customer` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -154,7 +157,7 @@ CREATE TABLE `employee` (
 
 LOCK TABLES `employee` WRITE;
 /*!40000 ALTER TABLE `employee` DISABLE KEYS */;
-INSERT INTO `employee` VALUES ('E001','Ahmad Saleh','Manager',96170000003,'ahmad@example.com','Yes','Hasan123',NULL,NULL),('E002','Lina Fares','Clerk',96170000004,'lina@example.com','No','',NULL,NULL),('EMP01','Hasan Jakmara','Manager',70111222,'Hasan.Jakmara123@rentcar.com','Yes','$2y$10$naGlGd3CD3ZALjrgrwXLx.2g8a5aEU.qQA.srv.9/1LoygdnKFCHa','d9c1d08f1c8f7331e9b6ed4d3a108068','2025-12-01'),('EMP02','Haidar Habach','Super_Visor',76333444,'Haidar.Habach@rentcar.com','Yes','',NULL,NULL),('EMP03','Mouhamad Hammoud','Sales_Manager',78990011,'Mouhammad.Hammoud@rentcar.com','No','',NULL,NULL);
+INSERT INTO `employee` VALUES ('E001','Ahmad Saleh','Manager',96170000003,'ahmad@example.com','Yes','Hasan123',NULL,NULL),('E002','Lina Fares','Clerk',96170000004,'lina@example.com','No','',NULL,NULL),('EMP01','Hasan Jakmara','Manager',70111222,'Hasan.Jakmara123@rentcar.com','Yes','$2y$10$naGlGd3CD3ZALjrgrwXLx.2g8a5aEU.qQA.srv.9/1LoygdnKFCHa','9a22a6aa6f5b0ac3e15ce012103e441f','2025-12-13'),('EMP02','Haidar Habach','Super_Visor',76333444,'Haidar.Habach@rentcar.com','Yes','',NULL,NULL),('EMP03','Mouhamad Hammoud','Sales_Manager',78990011,'Mouhammad.Hammoud@rentcar.com','No','',NULL,NULL),('ONLINE','ONLINE_ONE','ALL',11111111,'ONLINE_SERVING@Yahoo.com','No','11',NULL,NULL);
 /*!40000 ALTER TABLE `employee` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -170,8 +173,8 @@ SET @saved_cs_client     = @@character_set_client;
  1 AS `RENTALID`,
  1 AS `CUSTNAME`,
  1 AS `CARNAME`,
- 1 AS `RENTALDATE`,
- 1 AS `RENTALRETURN`*/;
+ 1 AS `PICKUPDATE`,
+ 1 AS `DROPOFFDATE`*/;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -243,9 +246,11 @@ CREATE TABLE `rental` (
   `CUSTID` varchar(20) NOT NULL,
   `CARID` varchar(20) NOT NULL,
   `EMPID` varchar(20) NOT NULL,
-  `RENTALDATE` date DEFAULT NULL,
-  `RENTALRETURN` varchar(20) DEFAULT NULL,
   `STATUS` varchar(20) DEFAULT NULL,
+  `PickUpLocation` varchar(70) NOT NULL,
+  `DropOffLocation` varchar(70) NOT NULL,
+  `PICKUPDATE` date NOT NULL,
+  `DROPOFFDATE` date NOT NULL,
   PRIMARY KEY (`RENTALID`),
   KEY `MAKE_FK` (`CUSTID`),
   KEY `RENTEDIN_FK` (`CARID`),
@@ -262,6 +267,7 @@ CREATE TABLE `rental` (
 
 LOCK TABLES `rental` WRITE;
 /*!40000 ALTER TABLE `rental` DISABLE KEYS */;
+INSERT INTO `rental` VALUES ('CRENTAL001','CUS003','5','ONLINE','Ongoing','Beirut','aa','2025-12-14','2026-01-01'),('CRENTAL002','CUS003','5','ONLINE','Ongoing','Beirut','aa','2025-12-14','2026-01-01');
 /*!40000 ALTER TABLE `rental` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -277,9 +283,11 @@ SET @saved_cs_client     = @@character_set_client;
  1 AS `RENTALID`,
  1 AS `CUSTNAME`,
  1 AS `CARNAME`,
- 1 AS `RENTALDATE`,
- 1 AS `RENTALRETURN`,
- 1 AS `STATUS`*/;
+ 1 AS `PICKUPDATE`,
+ 1 AS `DROPOFFDATE`,
+ 1 AS `STATUS`,
+ 1 AS `DropOffLocation`,
+ 1 AS `PickUpLocation`*/;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -295,7 +303,7 @@ SET character_set_client = @saved_cs_client;
 /*!50001 SET collation_connection      = utf8mb4_0900_ai_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
 /*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
-/*!50001 VIEW `available_cars` AS select `car`.`CARID` AS `CARID`,`car`.`CARNAME` AS `CARNAME`,`car`.`BRAND` AS `BRAND`,`car`.`HORSE_POWER` AS `HORSE_POWER`,`car`.`YEAR` AS `YEAR`,`car`.`PLATENUMBER` AS `PLATENUMBER` from `car` where (`car`.`CAR_STATUS` = 'Available') */;
+/*!50001 VIEW `available_cars` AS select `car`.`CARID` AS `CARID`,`car`.`CARNAME` AS `CARNAME`,`car`.`BRAND` AS `BRAND`,`car`.`HORSE_POWER` AS `HORSE_POWER`,`car`.`CAR_YEAR` AS `CAR_YEAR`,`car`.`PLATENUMBER` AS `PLATENUMBER` from `car` where ((`car`.`CAR_STATUS` = 'Available') and (`car`.`Quantity` > 0)) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
 /*!50001 SET collation_connection      = @saved_col_connection */;
@@ -313,7 +321,7 @@ SET character_set_client = @saved_cs_client;
 /*!50001 SET collation_connection      = utf8mb4_0900_ai_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
 /*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
-/*!50001 VIEW `late_rentals` AS select `r`.`RENTALID` AS `RENTALID`,`c`.`CUSTNAME` AS `CUSTNAME`,`ca`.`CARNAME` AS `CARNAME`,`r`.`RENTALDATE` AS `RENTALDATE`,`r`.`RENTALRETURN` AS `RENTALRETURN` from ((`rental` `r` join `customer` `c` on((`r`.`CUSTID` = `c`.`CUSTID`))) join `car` `ca` on((`r`.`CARID` = `ca`.`CARID`))) where (`r`.`STATUS` = 'Late') */;
+/*!50001 VIEW `late_rentals` AS select `r`.`RENTALID` AS `RENTALID`,`c`.`CUSTNAME` AS `CUSTNAME`,`ca`.`CARNAME` AS `CARNAME`,`r`.`PICKUPDATE` AS `PICKUPDATE`,`r`.`DROPOFFDATE` AS `DROPOFFDATE` from ((`rental` `r` join `customer` `c` on((`r`.`CUSTID` = `c`.`CUSTID`))) join `car` `ca` on((`r`.`CARID` = `ca`.`CARID`))) where (`r`.`STATUS` = 'Late') */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
 /*!50001 SET collation_connection      = @saved_col_connection */;
@@ -331,7 +339,7 @@ SET character_set_client = @saved_cs_client;
 /*!50001 SET collation_connection      = utf8mb4_0900_ai_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
 /*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
-/*!50001 VIEW `rental_details` AS select `r`.`RENTALID` AS `RENTALID`,`c`.`CUSTNAME` AS `CUSTNAME`,`ca`.`CARNAME` AS `CARNAME`,`r`.`RENTALDATE` AS `RENTALDATE`,`r`.`RENTALRETURN` AS `RENTALRETURN`,`r`.`STATUS` AS `STATUS` from ((`rental` `r` join `customer` `c` on((`r`.`CUSTID` = `c`.`CUSTID`))) join `car` `ca` on((`r`.`CARID` = `ca`.`CARID`))) */;
+/*!50001 VIEW `rental_details` AS select `r`.`RENTALID` AS `RENTALID`,`c`.`CUSTNAME` AS `CUSTNAME`,`ca`.`CARNAME` AS `CARNAME`,`r`.`PICKUPDATE` AS `PICKUPDATE`,`r`.`DROPOFFDATE` AS `DROPOFFDATE`,`r`.`STATUS` AS `STATUS`,`r`.`DropOffLocation` AS `DropOffLocation`,`r`.`PickUpLocation` AS `PickUpLocation` from ((`rental` `r` join `customer` `c` on((`r`.`CUSTID` = `c`.`CUSTID`))) join `car` `ca` on((`r`.`CARID` = `ca`.`CARID`))) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
 /*!50001 SET collation_connection      = @saved_col_connection */;
@@ -345,4 +353,4 @@ SET character_set_client = @saved_cs_client;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2025-12-06 21:19:06
+-- Dump completed on 2025-12-14 22:21:34
