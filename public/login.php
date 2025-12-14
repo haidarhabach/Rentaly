@@ -1,4 +1,5 @@
 <?php
+session_start();
 include '../includes/db.php';
 if(isset($_COOKIE["remember_token"]))
 {
@@ -24,9 +25,6 @@ if(isset($_COOKIE["remember_token"]))
     }
 }
 
-
-
-session_start();
 
 $error=$_SESSION["error"] ?? [];
 unset($_SESSION["error"]);
@@ -77,20 +75,54 @@ if($_SERVER['REQUEST_METHOD']=="POST")
     // if customer save in customer db 
     if(isset($_POST["customer"])) {
         $stmt2 = $connect->prepare("UPDATE customer SET remember_token=?, remember_expiry=? WHERE EMAIL=?");
+$stmt = $connect->prepare(
+    "SELECT CUSTID, CUSTNAME 
+    FROM customer 
+    WHERE EMAIL = ?"
+);
 
+$stmt->bind_param("s", $email);
+$stmt->execute();
+
+$result = $stmt->get_result();
+
+if ($row = $result->fetch_assoc()) {
+    $_SESSION["CUSTID"]   = $row["CUSTID"]; 
+    $_SESSION["CUSTNAME"] = $row["CUSTNAME"];
+
+}
     } 
         //this if employee
         elseif(isset($_POST["employee"])) {
         $stmt2 = $connect->prepare("UPDATE employee SET remember_token=?, remember_expiry=? WHERE EMAIL=?");
-    }
+    
+    $stmt = $connect->prepare(
+    "SELECT EMPID as e 
+    FROM employee 
+    WHERE EMAIL = ?"
+);
 
-    $stmt2->bind_param("sss", $token,$expire, $email);
-    $stmt2->execute();
+$stmt->bind_param("s", $email);
+$stmt->execute();
+
+$result = $stmt->get_result();
+
+if ($row = $result->fetch_assoc()) {
+    $_SESSION["EID"]   = $row["e"]; 
+
 }
 
+    }
+    $stmt2->bind_param("sss", $token,$expire, $email);
+    $stmt2->execute();
+    }
+//
+
+
+//
         header("Location:index.php");
         exit();
-    }
+}
 
     else {
         $error["invalid_password"]=1;
