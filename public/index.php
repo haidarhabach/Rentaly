@@ -763,7 +763,7 @@ body {
         }
         
         .stat-description {
-            color: gray
+            color: gray;
             font-size: 0.95rem;
             max-width: 250px;
             margin: 0 auto;
@@ -1322,7 +1322,7 @@ body {
 <div id="vehicleCarousel" class="carousel slide" data-bs-ride="carousel">
     <div class="carousel-inner">
         <?php
-        $stmt = $connect->prepare("SELECT MODEL,c.CARNAME, Seats, bags, Doors, car_type, daily_price, URL 
+        $stmt = $connect->prepare("SELECT c.CARID,a.CAR_YEAR ,color,description, MODEL,c.CARNAME, Seats, bags, Doors, car_type, daily_price, URL 
                                 FROM car AS c, car_photos AS cp , available_cars as a 
                                 WHERE c.CARID = cp.CARID
                                 and a.CARID=c.CARID;
@@ -1355,7 +1355,14 @@ body {
                             </div>
                             <div class="d-price">
                                 Daily rate from <span> <?= $row['daily_price'] ?>$</span>
-                                <a class="btn-main" href="car-single.html">Rent Now</a>
+                                <a class="btn-main" href="booking-form.php?name=<?= $row['CARNAME'] ?>
+                                &year=<?= $row["CAR_YEAR"] ?>
+                                &price=<?= $row['daily_price'] ?>&description=<?= $row['description'] ?>
+                                &image=<?= $row['URL'] ?>&Seats=<?= $row['Seats'] ?>
+                                &bags=<?= $row['bags'] ?>&Doors=<?= $row['Doors'] ?>
+                                &car_type=<?= $row['car_type'] ?>
+                                &CARID=<?= $row["CARID"] ?>"
+                                >Rent Now</a>
                             </div>
                         </div>
                     </div>
@@ -1862,5 +1869,6 @@ body {
 </body>
 
 </html>
+
 
 
