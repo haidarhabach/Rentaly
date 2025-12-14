@@ -1,5 +1,15 @@
 <html>
-
+<?php
+session_start();
+include '../includes/db.php';
+if (!isset($_SESSION["CUSTID"])) {
+    header("Location: login.php");
+    exit;
+}
+if (!isset($_SESSION["EID"])) {
+    $_SESSION["EID"]="ONLINE";
+}
+?>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -705,34 +715,32 @@ body {
             <!-- Column 1: Main Car Image -->
             <div class="col-lg-5">
                 <div class="main-car-image">
-                    <img id="mainCarImage" src="../assets/img/CArs/bmw-m5.jpg" alt="BMW M2 2020">
+                    <img id="mainCarImage" src="../assets/img/CArs/<?= $_GET["image"]??"BMW M2 2020" ?>" alt="<?= $_GET["name"]??"BMW M2 2020" ?>">
                 </div>
             </div>
 
             <!-- Column 2: Vehicle Info -->
             <div class="col-lg-4">
                 <div class="vehicle-info">
-                    <h2>BMW M2 2020</h2>
+                    <h2><?= $_GET["name"]??"BMW M2 2020" ?></h2>
                     <p class="vehicle-description">
-                        The BMW M2 is the high-performance version of the 2 Series 2-door coupé. 
-                        The first generation of the M2 is the F87 coupé and is powered by turbocharged 
-                        engines delivering exceptional performance and precision handling.
+                        <?= $_GET["description"]??"nothing to show.." ?>
                     </p>
 
                     <h3 class="specifications-title">Specifications</h3>
                     <div class="spec-grid">
-                        <div class="spec-item"><span class="spec-label">Body Type</span><span class="spec-value">Sedan</span></div>
-                        <div class="spec-item"><span class="spec-label">Seats</span><span class="spec-value">2 seats</span></div>
-                        <div class="spec-item"><span class="spec-label">Doors</span><span class="spec-value">2 doors</span></div>
-                        <div class="spec-item"><span class="spec-label">Luggage</span><span class="spec-value">150L</span></div>
+                        <div class="spec-item"><span class="spec-label">Body Type</span><span class="spec-value"><?= $_GET["car_type"]??"nothing" ?></span></div>
+                        <div class="spec-item"><span class="spec-label">Seats</span><span class="spec-value"><?= $_GET["Seats"]??"nothing" ?> seats</span></div>
+                        <div class="spec-item"><span class="spec-label">Doors</span><span class="spec-value"><?= $_GET["Doors"]??"nothing" ?> doors</span></div>
+                        <div class="spec-item"><span class="spec-label">Luggage</span><span class="spec-value">150L</span></div>    
                         <div class="spec-item"><span class="spec-label">Fuel Type</span><span class="spec-value">Hybrid</span></div>
                         <div class="spec-item"><span class="spec-label">Engine</span><span class="spec-value">3000cc</span></div>
-                        <div class="spec-item"><span class="spec-label">Year</span><span class="spec-value">2020</span></div>
+                        <div class="spec-item"><span class="spec-label">Year</span><span class="spec-value"><?= $_GET["year"]??"nothing" ?></span></div>
                         <div class="spec-item"><span class="spec-label">Mileage</span><span class="spec-value">200mi</span></div>
                         <div class="spec-item"><span class="spec-label">Transmission</span><span class="spec-value">Automatic</span></div>
                         <div class="spec-item"><span class="spec-label">Fuel Economy</span><span class="spec-value">18.5 MPG</span></div>
                         <div class="spec-item"><span class="spec-label">Exterior Color</span><span class="spec-value">Blue Metallic</span></div>
-                        <div class="spec-item"><span class="spec-label">Interior Color</span><span class="spec-value">Black</span></div>
+                        <div class="spec-item"><span class="spec-label">Interior Color</span><span class="spec-value"><?= $_GET["color"]??"no Color" ?></span></div>
                     </div>
 
                     <h3 class="specifications-title">Features</h3>
@@ -751,30 +759,30 @@ body {
             <div class="col-lg-3">
                 <div class="booking-box fade-in">
                     
-
+<!-- todo hasan -->
                     <div id="bookingForm">
                         <div class="price-display">
                             <div class="price-label">Daily Rate</div>
-                            <div class="price-amount">$265</div>
+                            <div class="price-amount"><?= $_GET["price"]??"0" ?>$</div>
                         </div>
 
                         <h3 class="booking-title">Book This Car</h3>
 
-                        <form id="vehicleBookingForm">
+                        <form method="post" action="#" id="vehicleBookingForm">
                             <div class="mb-3">
                                 <label class="form-label">Pick Up Location</label>
-                                <input type="text" class="form-control" placeholder="Enter pickup location" required>
+                                <input type="text" name="pickUp" class="form-control" placeholder="Enter pickup location" required>
                             </div>
 
                             <div class="mb-3">
                                 <label class="form-label">Drop Off Location</label>
-                                <input type="text" class="form-control" placeholder="Enter dropoff location" required>
+                                <input type="text" name="dropOff" class="form-control" placeholder="Enter dropoff location" required>
                             </div>
 
                             <div class="mb-3">
                                 <label class="form-label">Pick Up Date & Time</label>
                                 <div class="date-time-group">
-                                    <input type="date" class="form-control" required>
+                                    <input type="date" name="pickUpDate" class="form-control" required>
                                     <select class="form-select">
                                         <option value="08:00">08:00 AM</option>
                                         <option value="09:00">09:00 AM</option>
@@ -788,7 +796,7 @@ body {
                             <div class="mb-3">
                                 <label class="form-label">Return Date & Time</label>
                                 <div class="date-time-group">
-                                    <input type="date" class="form-control" required>
+                                    <input type="date" name="dropOffDate" class="form-control" required>
                                     <select class="form-select">
                                         <option value="16:00">04:00 PM</option>
                                         <option value="17:00">05:00 PM</option>
@@ -799,7 +807,7 @@ body {
                                 </div>
                             </div>
 
-                            <button type="submit" class="btn-book"><i class="fas fa-calendar-check me-2"></i> Book Now</button>
+                            <button type="submit" name="bookNow" class="btn-book"><i class="fas fa-calendar-check me-2"></i> Book Now</button>
                         </form>
                     </div>
                 </div>
@@ -807,6 +815,59 @@ body {
         </div>
     </div>
 </section>
+<!-- jako backend -->
+<?php
+
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["bookNow"])) {
+
+    $pickUp      = $_POST["pickUp"];
+    $dropOff     = $_POST["dropOff"];
+    $pickUpDate  = $_POST["pickUpDate"];
+    $dropOffDate = $_POST["dropOffDate"];
+    $carId       = $_GET["CARID"];
+    $custId      = $_SESSION["CUSTID"];
+
+//  note online if no emmployee
+    $empId = $_SESSION["EID"];
+
+//Function: IsCarAvailable return if car have x id available or not 
+    $stmt = $connect->prepare("SELECT IsCarAvailable(?) AS ok");
+    $stmt->bind_param("s", $carId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $row = $res->fetch_assoc();
+
+    if ($row["ok"] == 1) {
+// can get the generate rentalid by get result assosiative (the procedure create a new rental)
+        $stmt = $connect->prepare(
+            "CALL CreateRental(?, ?, ?, ?, ?, ?, ?)"
+        );
+
+        $stmt->bind_param(
+            "sssssss",
+            $custId,      
+            $carId,      
+            $empId,       
+            $pickUpDate,  
+            $dropOffDate, 
+            $pickUp,      
+            $dropOff     
+        );
+
+        $stmt->execute();
+        $stmt->prepare("call UpdateCarStatus()");
+        $stmt->execute();
+
+        echo "<script>alert('THE RENTAL HAS BEEN SUCCESSFULY');</script>";
+
+    } else {
+        echo "<script>alert('THE CAR IS NOT AVAILABLE NOW');</script>";
+    }
+}
+
+
+?>
+
 
 <!-- Footer Section -->
     <footer class="footer-main">
