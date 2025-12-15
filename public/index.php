@@ -1361,6 +1361,7 @@ body {
                                 &image=<?= $row['URL'] ?>&Seats=<?= $row['Seats'] ?>
                                 &bags=<?= $row['bags'] ?>&Doors=<?= $row['Doors'] ?>
                                 &car_type=<?= $row['car_type'] ?>
+                                &price=<?= $row['daily_price'] ?>
                                 &CARID=<?= $row["CARID"] ?>"
                                 >Rent Now</a>
                             </div>
