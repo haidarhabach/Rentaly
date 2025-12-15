@@ -759,7 +759,7 @@ body {
             <div class="col-lg-3">
                 <div class="booking-box fade-in">
                     
-<!-- todo hasan -->
+<!-- backend hasan -->
                     <div id="bookingForm">
                         <div class="price-display">
                             <div class="price-label">Daily Rate</div>
@@ -830,35 +830,48 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["bookNow"])) {
 //  note online if no emmployee
     $empId = $_SESSION["EID"];
 
+// new mission 12-15-2025 final price 
+// date time function with diff return the difference as day for 2 different Dates
+    $d1 = new DateTime($pickUpDate);
+    $d2 = new DateTime($dropOffDate);
+
+    if ($d2 <= $d1) {
+        echo "<script>alert('Return date must be after pickup date');</script>";
+        exit;
+    }
+    $diff=$d1->diff($d2)->days;
+$finalPrice = (int) $diff * $_GET["price"];
+
+
 //Function: IsCarAvailable return if car have x id available or not 
     $stmt = $connect->prepare("SELECT IsCarAvailable(?) AS ok");
     $stmt->bind_param("s", $carId);
     $stmt->execute();
     $res = $stmt->get_result();
     $row = $res->fetch_assoc();
-
     if ($row["ok"] == 1) {
 // can get the generate rentalid by get result assosiative (the procedure create a new rental)
         $stmt = $connect->prepare(
-            "CALL CreateRental(?, ?, ?, ?, ?, ?, ?)"
+            "CALL CreateRental(?, ?, ?, ?, ?, ?, ?,?)"
         );
 
         $stmt->bind_param(
-            "sssssss",
+            "ssssssss",
             $custId,      
             $carId,      
             $empId,       
             $pickUpDate,  
             $dropOffDate, 
             $pickUp,      
-            $dropOff     
+            $dropOff,
+            $finalPrice     
         );
 
         $stmt->execute();
         $stmt->prepare("call UpdateCarStatus()");
         $stmt->execute();
 
-        echo "<script>alert('THE RENTAL HAS BEEN SUCCESSFULY');</script>";
+        echo "<script>alert('THE RENTAL HAS BEEN SUCCESSFULY YOU NEED TO PAY $finalPrice$');</script>";
 
     } else {
         echo "<script>alert('THE CAR IS NOT AVAILABLE NOW');</script>";
