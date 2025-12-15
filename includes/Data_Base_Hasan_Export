@@ -66,7 +66,7 @@ CREATE TABLE `car` (
 
 LOCK TABLES `car` WRITE;
 /*!40000 ALTER TABLE `car` DISABLE KEYS */;
-INSERT INTO `car` VALUES ('1','Raptor','Ford Raptor','Ford',450,'Available',2022,'ABC123',147,'SUV','2','4','5',11,NULL,NULL),('2','M5','BMW M5','BMW',600,'Available',2021,'BMW555',200,'Sedan','2','4','5',10,NULL,NULL),('3','Enzo','Ferrari Enzo','Ferrari',650,'Available',2020,'FER777',350,'Sport','1','2','2',10,NULL,NULL),('4','Renegade','Jeep Renegade','Jeep',180,'Available',2019,'JEE111',256,'SUV','2','4','5',10,NULL,NULL),('5','Cooper','Mini Cooper','Mini',136,'Rented',2021,'MIN222',238,'Hatchback','2','2','4',0,NULL,NULL),('6','Polo','VW Polo','Volkswagen',110,'Available',2018,'VW333',106,'Hatchback','2','4','5',32,NULL,NULL);
+INSERT INTO `car` VALUES ('1','Raptor','Ford Raptor','Ford',450,'Available',2022,'ABC123',147,'SUV','2','4','5',11,NULL,NULL),('2','M5','BMW M5','BMW',600,'Available',2021,'BMW555',200,'Sedan','2','4','5',8,NULL,NULL),('3','Enzo','Ferrari Enzo','Ferrari',650,'Available',2020,'FER777',350,'Sport','1','2','2',10,NULL,NULL),('4','Renegade','Jeep Renegade','Jeep',180,'Available',2019,'JEE111',256,'SUV','2','4','5',8,NULL,NULL),('5','Cooper','Mini Cooper','Mini',136,'Available',2021,'MIN222',238,'Hatchback','2','2','4',11,NULL,NULL),('6','Polo','VW Polo','Volkswagen',110,'Available',2018,'VW333',106,'Hatchback','2','4','5',32,NULL,NULL);
 /*!40000 ALTER TABLE `car` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -126,7 +126,7 @@ CREATE TABLE `customer` (
 
 LOCK TABLES `customer` WRITE;
 /*!40000 ALTER TABLE `customer` DISABLE KEYS */;
-INSERT INTO `customer` VALUES ('CU003','Omar Khaled',96170000005,'Jnah, Beirut','DL54321','omar@example.com','$2y$10$aTyPYpoOHiD2Tr7/R90NLOhqoaOIlPZWUaRDAMUkubwIO35UVlotC',NULL,NULL),('CUS001','Ali Youssef',70123456,'Beirut - Ouzaii','DL-987654','Ali.Youssef123@example.com','Hasan123',NULL,NULL),('CUS002','Hussein Fakih',76123456,'Beirut - ZakAlBlat','DL-123987','Husein.Fakih123@example.com','hsein123',NULL,NULL),('CUS003','Mohamad Younes',71111222,'Saida - Corniche','DL-456321','m.younes@example.com','$2y$10$XqeGwFFYAwaS9PTY2KWajey0sPVSzg0ExyCTsc5L0bD3x0WZX.fDu','17f2c4197a23fdc8457d1a3e2364838a','2026-01-13'),('CUS004','Joseph Atieh',76555111,'Beirut - Achrafieh','DL-741258','Jrej123@@example.com','',NULL,NULL),('CUS005','Rami Kassem',78965412,'Tyre - Bustan','DL-159753','rami.kassem@example.com','',NULL,NULL),('CUS006','Maya Fares',76333111,'Baabda - Louaizeh','DL-852456','maya.fares@example.com','',NULL,NULL),('CUS007','Omar Chami',70100555,'Beirut - Tarik Jdideh','DL-963258','omar.chami@example.com','',NULL,NULL),('CUS008','Noor Barakat',71666222,'Jounieh - Maameltein','DL-258147','noor.barakat@example.com','',NULL,NULL),('CUS009','Kamal Darwish',78999888,'Zahle - Main St.','DL-357159','kamal.d@example.com','',NULL,NULL),('CUS010','Lina Khoury',76004455,'Byblos - Old Town','DL-444777','lina.khoury@example.com','',NULL,NULL);
+INSERT INTO `customer` VALUES ('CU003','Omar Khaled',96170000005,'Jnah, Beirut','DL54321','omar@example.com','$2y$10$aTyPYpoOHiD2Tr7/R90NLOhqoaOIlPZWUaRDAMUkubwIO35UVlotC',NULL,NULL),('CUS001','Ali Youssef',70123456,'Beirut - Ouzaii','DL-987654','Ali.Youssef123@example.com','Hasan123',NULL,NULL),('CUS002','Hussein Fakih',76123456,'Beirut - ZakAlBlat','DL-123987','Husein.Fakih123@example.com','hsein123',NULL,NULL),('CUS003','Mohamad Younes',71111222,'Saida - Corniche','DL-456321','m.younes@example.com','$2y$10$XqeGwFFYAwaS9PTY2KWajey0sPVSzg0ExyCTsc5L0bD3x0WZX.fDu','5a7cc94f6f10a0aca0790f46f4911835','2025-12-15'),('CUS004','Joseph Atieh',76555111,'Beirut - Achrafieh','DL-741258','Jrej123@@example.com','',NULL,NULL),('CUS005','Rami Kassem',78965412,'Tyre - Bustan','DL-159753','rami.kassem@example.com','',NULL,NULL),('CUS006','Maya Fares',76333111,'Baabda - Louaizeh','DL-852456','maya.fares@example.com','',NULL,NULL),('CUS007','Omar Chami',70100555,'Beirut - Tarik Jdideh','DL-963258','omar.chami@example.com','',NULL,NULL),('CUS008','Noor Barakat',71666222,'Jounieh - Maameltein','DL-258147','noor.barakat@example.com','',NULL,NULL),('CUS009','Kamal Darwish',78999888,'Zahle - Main St.','DL-357159','kamal.d@example.com','',NULL,NULL),('CUS010','Lina Khoury',76004455,'Byblos - Old Town','DL-444777','lina.khoury@example.com','',NULL,NULL);
 /*!40000 ALTER TABLE `customer` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -251,6 +251,7 @@ CREATE TABLE `rental` (
   `DropOffLocation` varchar(70) NOT NULL,
   `PICKUPDATE` date NOT NULL,
   `DROPOFFDATE` date NOT NULL,
+  `FINALPRICE` int NOT NULL,
   PRIMARY KEY (`RENTALID`),
   KEY `MAKE_FK` (`CUSTID`),
   KEY `RENTEDIN_FK` (`CARID`),
@@ -267,7 +268,7 @@ CREATE TABLE `rental` (
 
 LOCK TABLES `rental` WRITE;
 /*!40000 ALTER TABLE `rental` DISABLE KEYS */;
-INSERT INTO `rental` VALUES ('CRENTAL001','CUS003','5','ONLINE','Ongoing','Beirut','aa','2025-12-14','2026-01-01'),('CRENTAL002','CUS003','5','ONLINE','Ongoing','Beirut','aa','2025-12-14','2026-01-01');
+INSERT INTO `rental` VALUES ('CRENTAL001','CUS003','4','ONLINE','Ongoing','Beirut','aa','2025-12-15','2025-12-20',0),('CRENTAL002','CUS003','4','ONLINE','Ongoing','Beirut','aa','2025-12-15','2025-12-20',1280);
 /*!40000 ALTER TABLE `rental` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -353,4 +354,4 @@ SET character_set_client = @saved_cs_client;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2025-12-14 22:21:34
+-- Dump completed on 2025-12-15 16:08:09
