@@ -49,13 +49,50 @@ if($_SERVER['REQUEST_METHOD']=="POST")
     {
         $error["invalid_password"]=1;
     }
+    // edit by hasan jakmara
     if(isset($_POST["customer"]))
     {
     $stmt=$connect->prepare("SELECT  Password from customer where EMAIL =? ");
+    //
+$stmet = $connect->prepare(
+    "SELECT CUSTID, CUSTNAME 
+    FROM customer 
+    WHERE EMAIL = ?"
+);
+
+$stmet->bind_param("s", $email);
+$stmet->execute();
+
+$result = $stmet->get_result();
+
+if ($row = $result->fetch_assoc()) {
+    $_SESSION["CUSTID"]   = $row["CUSTID"]; 
+    $_SESSION["CUSTNAME"] = $row["CUSTNAME"];
+
+}
+    //
     }
     elseif (isset($_POST["employee"]))
     {
     $stmt=$connect->prepare("SELECT Password from employee where EMAIL =?");
+//
+    $stmet = $connect->prepare(
+    "SELECT EMPID as e 
+    FROM employee 
+    WHERE EMAIL = ?"
+);
+
+$stmet->bind_param("s", $email);
+$stmet->execute();
+
+$result = $stmet->get_result();
+
+if ($row = $result->fetch_assoc()) {
+    $_SESSION["EID"]   = $row["e"]; 
+
+}
+//
+
     }
     $stmt->bind_param("s",$email);
     $stmt->execute();
@@ -75,51 +112,17 @@ if($_SERVER['REQUEST_METHOD']=="POST")
     // if customer save in customer db 
     if(isset($_POST["customer"])) {
         $stmt2 = $connect->prepare("UPDATE customer SET remember_token=?, remember_expiry=? WHERE EMAIL=?");
-$stmt = $connect->prepare(
-    "SELECT CUSTID, CUSTNAME 
-    FROM customer 
-    WHERE EMAIL = ?"
-);
 
-$stmt->bind_param("s", $email);
-$stmt->execute();
-
-$result = $stmt->get_result();
-
-if ($row = $result->fetch_assoc()) {
-    $_SESSION["CUSTID"]   = $row["CUSTID"]; 
-    $_SESSION["CUSTNAME"] = $row["CUSTNAME"];
-
-}
     } 
         //this if employee
         elseif(isset($_POST["employee"])) {
         $stmt2 = $connect->prepare("UPDATE employee SET remember_token=?, remember_expiry=? WHERE EMAIL=?");
-    
-    $stmt = $connect->prepare(
-    "SELECT EMPID as e 
-    FROM employee 
-    WHERE EMAIL = ?"
-);
-
-$stmt->bind_param("s", $email);
-$stmt->execute();
-
-$result = $stmt->get_result();
-
-if ($row = $result->fetch_assoc()) {
-    $_SESSION["EID"]   = $row["e"]; 
-
-}
 
     }
     $stmt2->bind_param("sss", $token,$expire, $email);
     $stmt2->execute();
     }
-//
 
-
-//
         header("Location:index.php");
         exit();
 }
