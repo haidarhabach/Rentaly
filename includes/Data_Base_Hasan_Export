@@ -1,12 +1,12 @@
--- DATABASE: car_rent
-CREATE DATABASE IF NOT EXISTS `car_rent` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+-- ==================================================
+-- Database: car_rent
+-- ==================================================
+CREATE DATABASE IF NOT EXISTS `car_rent` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci */;
 USE `car_rent`;
 
--- ================================
--- TABLES
--- ================================
-
--- car
+-- ===============================================
+-- Table: car
+-- ===============================================
 DROP TABLE IF EXISTS `car`;
 CREATE TABLE `car` (
   `CARID` varchar(20) NOT NULL,
@@ -28,7 +28,48 @@ CREATE TABLE `car` (
   PRIMARY KEY (`CARID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- car_photos
+-- Sample Data
+INSERT INTO `car` VALUES 
+('1','Raptor','Ford Raptor','Ford',450,'Available',2022,'ABC123',147,'SUV','2','4','5',11,NULL,NULL),
+('2','M5','BMW M5','BMW',600,'Available',2021,'BMW555',200,'Sedan','2','4','5',8,NULL,NULL),
+('3','Enzo','Ferrari Enzo','Ferrari',650,'Available',2020,'FER777',350,'Sport','1','2','2',10,NULL,NULL),
+('4','Renegade','Jeep Renegade','Jeep',180,'Available',2019,'JEE111',256,'SUV','2','4','5',6,NULL,NULL),
+('5','Cooper','Mini Cooper','Mini',136,'Available',2021,'MIN222',238,'Hatchback','2','2','4',11,NULL,NULL),
+('6','Polo','VW Polo','Volkswagen',110,'Available',2018,'VW333',106,'Hatchback','2','4','5',32,NULL,NULL);
+
+-- Triggers for car
+DELIMITER ;;
+CREATE TRIGGER `prevent_duplicate_plate` BEFORE INSERT ON `car` FOR EACH ROW
+BEGIN
+    IF EXISTS (SELECT * FROM car WHERE PLATENUMBER = NEW.PLATENUMBER) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'This plate number already exists.';
+    END IF;
+END;;
+DELIMITER ;
+
+DELIMITER ;;
+CREATE TRIGGER `TU_CAR` AFTER UPDATE ON `car` FOR EACH ROW
+BEGIN
+    IF OLD.CARID <> NEW.CARID THEN
+        UPDATE maintanance
+        SET CARID = NEW.CARID
+        WHERE CARID = OLD.CARID;
+    END IF;
+END;;
+DELIMITER ;
+
+DELIMITER ;;
+CREATE TRIGGER `TD_CAR` AFTER DELETE ON `car` FOR EACH ROW
+BEGIN
+    UPDATE maintanance
+    SET CARID = NULL
+    WHERE CARID = OLD.CARID;
+END;;
+DELIMITER ;
+
+-- ===============================================
+-- Table: car_photos
+-- ===============================================
 DROP TABLE IF EXISTS `car_photos`;
 CREATE TABLE `car_photos` (
   `ID` int NOT NULL AUTO_INCREMENT,
@@ -38,10 +79,20 @@ CREATE TABLE `car_photos` (
   `CREATE_AT` date DEFAULT NULL,
   PRIMARY KEY (`ID`),
   KEY `CARID` (`CARID`),
-  CONSTRAINT `car_photos_ibfk_1` FOREIGN KEY (`CARID`) REFERENCES `car` (`CARID`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  CONSTRAINT `car_photos_ibfk_1` FOREIGN KEY (`CARID`) REFERENCES `car` (`CARID`)
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4;
 
--- customer
+INSERT INTO `car_photos` VALUES 
+(1,'1','ford-raptor.jpg',1,'2025-12-06'),
+(2,'2','bmw-m5.jpg',1,'2025-12-06'),
+(3,'3','ferrari-enzo.jpg',1,'2025-12-06'),
+(4,'4','jeep-renegade.jpg',1,'2025-12-06'),
+(5,'5','mini-cooper.jpg',1,'2025-12-06'),
+(6,'6','vw-polo.jpg',1,'2025-12-06');
+
+-- ===============================================
+-- Table: customer
+-- ===============================================
 DROP TABLE IF EXISTS `customer`;
 CREATE TABLE `customer` (
   `CUSTID` varchar(20) NOT NULL,
@@ -56,7 +107,16 @@ CREATE TABLE `customer` (
   PRIMARY KEY (`CUSTID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- employee
+-- Sample Data
+INSERT INTO `customer` VALUES
+('CUS001','Ali Youssef',70123456,'Beirut - Ouzaii','DL-987654','Ali.Youssef123@example.com','Hasan123',NULL,NULL),
+('CUS002','Hussein Fakih',76123456,'Beirut - ZakAlBlat','DL-123987','Husein.Fakih123@example.com','hsein123',NULL,NULL),
+('CUS003','Mohamad Younes',71111222,'Saida - Corniche','DL-456321','m.younes@example.com','$2y$10$XqeGwFFYAwaS9PTY2KWajey0sPVSzg0ExyCTsc5L0bD3x0WZX.fDu','5a7cc94f6f10a0aca0790f46f4911835','2025-12-15'),
+('CUS012','Hasan Jakmara',78765159,'Ouzaii','gg','Hasan123@example.com','$2y$10$uRxrj6CT95s/F1FZZRSPAOQVULetT7ZgO0F4ggf7.OVz3iguHmLNi','df67ed685ee2da80d997a94fdd63c9cd','2026-01-26');
+
+-- ===============================================
+-- Table: employee
+-- ===============================================
 DROP TABLE IF EXISTS `employee`;
 CREATE TABLE `employee` (
   `EMPID` varchar(20) NOT NULL,
@@ -71,7 +131,50 @@ CREATE TABLE `employee` (
   PRIMARY KEY (`EMPID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- rental
+-- Sample Data
+INSERT INTO `employee` VALUES
+('E001','Ahmad Saleh','Manager',96170000003,'ahmad@example.com','Yes','Hasan123',NULL,NULL),
+('EMP01','Hasan Jakmara','Manager',70111222,'Hasan.Jakmara123@rentcar.com','Yes','$2y$10$naGlGd3CD3ZALjrgrwXLx.2g8a5aEU.qQA.srv.9/1LoygdnKFCHa','9a22a6aa6f5b0ac3e15ce012103e441f','2025-12-13');
+
+-- ===============================================
+-- Table: maintanance
+-- ===============================================
+DROP TABLE IF EXISTS `maintanance`;
+CREATE TABLE `maintanance` (
+  `MAINTANANCEID` varchar(20) NOT NULL,
+  `CARID` varchar(20) NOT NULL,
+  `MAINDATE` date DEFAULT NULL,
+  `DESCRIPTON` varchar(100) DEFAULT NULL,
+  `COST` decimal(10,2) DEFAULT NULL,
+  PRIMARY KEY (`MAINTANANCEID`),
+  KEY `UNDERGOES_FK` (`CARID`),
+  CONSTRAINT `maintanance_ibfk_1` FOREIGN KEY (`CARID`) REFERENCES `car` (`CARID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Triggers for maintanance
+DELIMITER ;;
+CREATE TRIGGER `TI_MAINTANANCE` BEFORE INSERT ON `maintanance` FOR EACH ROW
+BEGIN
+    IF (SELECT COUNT(*) FROM car WHERE CARID = NEW.CARID) = 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Parent CAR does not exist. Cannot insert MAINTANANCE.';
+    END IF;
+END;;
+DELIMITER ;
+
+DELIMITER ;;
+CREATE TRIGGER `TU_MAINTANANCE` BEFORE UPDATE ON `maintanance` FOR EACH ROW
+BEGIN
+    IF NEW.CARID <> OLD.CARID THEN
+        IF (SELECT COUNT(*) FROM car WHERE CARID = NEW.CARID) = 0 THEN
+            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'CAR does not exist. Cannot update MAINTANANCE.';
+        END IF;
+    END IF;
+END;;
+DELIMITER ;
+
+-- ===============================================
+-- Table: rental
+-- ===============================================
 DROP TABLE IF EXISTS `rental`;
 CREATE TABLE `rental` (
   `RENTALID` varchar(20) NOT NULL,
@@ -88,38 +191,67 @@ CREATE TABLE `rental` (
   KEY `MAKE_FK` (`CUSTID`),
   KEY `RENTEDIN_FK` (`CARID`),
   KEY `HANDLE_FK` (`EMPID`),
-  CONSTRAINT `rental_ibfk_1` FOREIGN KEY (`CUSTID`) REFERENCES `customer` (`CUSTID`) ON DELETE CASCADE,
-  CONSTRAINT `rental_ibfk_2` FOREIGN KEY (`CARID`) REFERENCES `car` (`CARID`) ON DELETE CASCADE,
-  CONSTRAINT `rental_ibfk_3` FOREIGN KEY (`EMPID`) REFERENCES `employee` (`EMPID`) ON DELETE CASCADE
+  CONSTRAINT `rental_ibfk_1` FOREIGN KEY (`CUSTID`) REFERENCES `customer` (`CUSTID`),
+  CONSTRAINT `rental_ibfk_2` FOREIGN KEY (`CARID`) REFERENCES `car` (`CARID`),
+  CONSTRAINT `rental_ibfk_3` FOREIGN KEY (`EMPID`) REFERENCES `employee` (`EMPID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- maintanance
-DROP TABLE IF EXISTS `maintanance`;
-CREATE TABLE `maintanance` (
-  `MAINTANANCEID` varchar(20) NOT NULL,
-  `CARID` varchar(20) NOT NULL,
-  `MAINDATE` date DEFAULT NULL,
-  `DESCRIPTON` varchar(100) DEFAULT NULL,
-  `COST` decimal(10,2) DEFAULT NULL,
-  PRIMARY KEY (`MAINTANANCEID`),
-  KEY `UNDERGOES_FK` (`CARID`),
-  CONSTRAINT `maintanance_ibfk_1` FOREIGN KEY (`CARID`) REFERENCES `car` (`CARID`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT INTO `rental` VALUES 
+('CRENTAL001','CUS003','4','ONLINE','Ongoing','Beirut','Ouzaii','2025-12-15','2025-12-20',1280);
 
--- payment
+-- Triggers for rental
+DELIMITER ;;
+CREATE TRIGGER `prevent_rent_unavailable_car` BEFORE INSERT ON `rental` FOR EACH ROW
+BEGIN
+    DECLARE carStatus VARCHAR(20);
+    SELECT CAR_STATUS INTO carStatus FROM car WHERE CARID = NEW.CARID;
+    IF carStatus <> 'available' THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Cannot rent this car because it is not available.';
+    END IF;
+END;;
+DELIMITER ;
+
+DELIMITER ;;
+CREATE TRIGGER `update_car_status_on_return` AFTER UPDATE ON `rental` FOR EACH ROW
+BEGIN
+    IF NEW.RENTALRETURN IS NOT NULL AND OLD.RENTALRETURN IS NULL THEN
+        UPDATE car SET CAR_STATUS = 'available' WHERE CARID = NEW.CARID;
+    END IF;
+END;;
+DELIMITER ;
+-- ===============================================
+-- Table: payment
+-- ===============================================
 DROP TABLE IF EXISTS `payment`;
 CREATE TABLE `payment` (
   `PAYMENTID` varchar(20) NOT NULL,
   `RENTALID` varchar(20) NOT NULL,
   `METHODE` varchar(20) DEFAULT NULL,
-  `PAYMNETDATE` date DEFAULT NULL,
+  `PAYMENTDATE` date DEFAULT NULL,
   `AMOUNT` decimal(10,2) DEFAULT NULL,
   `PAYMENTSTATUS` varchar(20) DEFAULT NULL,
   PRIMARY KEY (`PAYMENTID`),
-  KEY `HAS_FK` (`RENTALID`),
-  CONSTRAINT `payment_ibfk_1` FOREIGN KEY (`RENTALID`) REFERENCES `rental` (`RENTALID`) ON DELETE CASCADE
+  KEY `RENTAL_FK` (`RENTALID`),
+  CONSTRAINT `payment_ibfk_1` FOREIGN KEY (`RENTALID`) REFERENCES `rental` (`RENTALID`)
+    ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Sample Data
+INSERT INTO `payment` VALUES
+('PAY001','CRENTAL001','Cash','2025-12-15',1280,'Paid'),
+('PAY002','CRENTAL002','Card','2025-12-16',950,'Pending');
+
+-- Trigger example: prevent overpayment
+DELIMITER ;;
+CREATE TRIGGER `check_payment_amount` BEFORE INSERT ON `payment` FOR EACH ROW
+BEGIN
+    DECLARE rentalPrice INT;
+    SELECT FINALPRICE INTO rentalPrice FROM rental WHERE RENTALID = NEW.RENTALID;
+    IF NEW.AMOUNT > rentalPrice THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Payment exceeds rental price';
+    END IF;
+END;;
+DELIMITER ;
 -- ================================
 -- FUNCTIONS
 -- ================================
