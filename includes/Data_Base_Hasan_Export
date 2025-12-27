@@ -1,44 +1,13 @@
--- MySQL dump 10.13  Distrib 8.0.43, for Win64 (x86_64)
---
--- Host: localhost    Database: car_rent
--- ------------------------------------------------------
--- Server version	8.0.43
+-- DATABASE: car_rent
+CREATE DATABASE IF NOT EXISTS `car_rent` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+USE `car_rent`;
 
-/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
-/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
-/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
-/*!50503 SET NAMES utf8 */;
-/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
-/*!40103 SET TIME_ZONE='+00:00' */;
-/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
-/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
-/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
-/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+-- ================================
+-- TABLES
+-- ================================
 
---
--- Temporary view structure for view `available_cars`
---
-
-DROP TABLE IF EXISTS `available_cars`;
-/*!50001 DROP VIEW IF EXISTS `available_cars`*/;
-SET @saved_cs_client     = @@character_set_client;
-/*!50503 SET character_set_client = utf8mb4 */;
-/*!50001 CREATE VIEW `available_cars` AS SELECT 
- 1 AS `CARID`,
- 1 AS `CARNAME`,
- 1 AS `BRAND`,
- 1 AS `HORSE_POWER`,
- 1 AS `CAR_YEAR`,
- 1 AS `PLATENUMBER`*/;
-SET character_set_client = @saved_cs_client;
-
---
--- Table structure for table `car`
---
-
+-- car
 DROP TABLE IF EXISTS `car`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `car` (
   `CARID` varchar(20) NOT NULL,
   `MODEL` varchar(20) DEFAULT NULL,
@@ -57,88 +26,10 @@ CREATE TABLE `car` (
   `description` varchar(250) DEFAULT NULL,
   `color` varchar(25) DEFAULT NULL,
   PRIMARY KEY (`CARID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
---
--- Dumping data for table `car`
---
-
-LOCK TABLES `car` WRITE;
-/*!40000 ALTER TABLE `car` DISABLE KEYS */;
-INSERT INTO `car` VALUES ('1','Raptor','Ford Raptor','Ford',450,'Available',2022,'ABC123',147,'SUV','2','4','5',11,NULL,NULL),('2','M5','BMW M5','BMW',600,'Available',2021,'BMW555',200,'Sedan','2','4','5',8,NULL,NULL),('3','Enzo','Ferrari Enzo','Ferrari',650,'Available',2020,'FER777',350,'Sport','1','2','2',10,NULL,NULL),('4','Renegade','Jeep Renegade','Jeep',180,'Available',2019,'JEE111',256,'SUV','2','4','5',6,NULL,NULL),('5','Cooper','Mini Cooper','Mini',136,'Available',2021,'MIN222',238,'Hatchback','2','2','4',11,NULL,NULL),('6','Polo','VW Polo','Volkswagen',110,'Available',2018,'VW333',106,'Hatchback','2','4','5',32,NULL,NULL);
-/*!40000 ALTER TABLE `car` ENABLE KEYS */;
-UNLOCK TABLES;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = utf8mb4 */ ;
-/*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
-DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER `prevent_duplicate_plate` BEFORE INSERT ON `car` FOR EACH ROW BEGIN
-    IF EXISTS (SELECT * FROM car WHERE PLATENUMBER = NEW.PLATENUMBER) THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'This plate number already exists.';
-    END IF;
-END */;;
-DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = utf8mb4 */ ;
-/*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
-DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER `TU_CAR` AFTER UPDATE ON `car` FOR EACH ROW BEGIN
-    -- If CARID changed, update child MAINTANANCE records
-    IF OLD.CARID <> NEW.CARID THEN
-        UPDATE MAINTANANCE
-        SET CARID = NEW.CARID
-        WHERE CARID = OLD.CARID;
-    END IF;
-END */;;
-DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = utf8mb4 */ ;
-/*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
-DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER `TD_CAR` AFTER DELETE ON `car` FOR EACH ROW BEGIN
-    -- When CAR is deleted, set CARID in MAINTANANCE to NULL (or another value)
-    UPDATE MAINTANANCE
-    SET CARID = NULL
-    WHERE CARID = OLD.CARID;
-END */;;
-DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
-
---
--- Table structure for table `car_photos`
---
-
+-- car_photos
 DROP TABLE IF EXISTS `car_photos`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `car_photos` (
   `ID` int NOT NULL AUTO_INCREMENT,
   `CARID` varchar(20) DEFAULT NULL,
@@ -147,27 +38,11 @@ CREATE TABLE `car_photos` (
   `CREATE_AT` date DEFAULT NULL,
   PRIMARY KEY (`ID`),
   KEY `CARID` (`CARID`),
-  CONSTRAINT `car_photos_ibfk_1` FOREIGN KEY (`CARID`) REFERENCES `car` (`CARID`)
-) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
+  CONSTRAINT `car_photos_ibfk_1` FOREIGN KEY (`CARID`) REFERENCES `car` (`CARID`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
---
--- Dumping data for table `car_photos`
---
-
-LOCK TABLES `car_photos` WRITE;
-/*!40000 ALTER TABLE `car_photos` DISABLE KEYS */;
-INSERT INTO `car_photos` VALUES (1,'1','ford-raptor.jpg',1,'2025-12-06'),(2,'2','bmw-m5.jpg',1,'2025-12-06'),(3,'3','ferrari-enzo.jpg',1,'2025-12-06'),(4,'4','jeep-renegade.jpg',1,'2025-12-06'),(5,'5','mini-cooper.jpg',1,'2025-12-06'),(6,'6','vw-polo.jpg',1,'2025-12-06');
-/*!40000 ALTER TABLE `car_photos` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `customer`
---
-
+-- customer
 DROP TABLE IF EXISTS `customer`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `customer` (
   `CUSTID` varchar(20) NOT NULL,
   `CUSTNAME` char(30) DEFAULT NULL,
@@ -179,26 +54,10 @@ CREATE TABLE `customer` (
   `remember_token` varchar(255) DEFAULT NULL,
   `remember_expiry` date DEFAULT NULL,
   PRIMARY KEY (`CUSTID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
---
--- Dumping data for table `customer`
---
-
-LOCK TABLES `customer` WRITE;
-/*!40000 ALTER TABLE `customer` DISABLE KEYS */;
-INSERT INTO `customer` VALUES ('CU003','Omar Khaled',96170000005,'Jnah, Beirut','DL54321','omar@example.com','$2y$10$aTyPYpoOHiD2Tr7/R90NLOhqoaOIlPZWUaRDAMUkubwIO35UVlotC',NULL,NULL),('CUS001','Ali Youssef',70123456,'Beirut - Ouzaii','DL-987654','Ali.Youssef123@example.com','Hasan123',NULL,NULL),('CUS002','Hussein Fakih',76123456,'Beirut - ZakAlBlat','DL-123987','Husein.Fakih123@example.com','hsein123',NULL,NULL),('CUS003','Mohamad Younes',71111222,'Saida - Corniche','DL-456321','m.younes@example.com','$2y$10$XqeGwFFYAwaS9PTY2KWajey0sPVSzg0ExyCTsc5L0bD3x0WZX.fDu','5a7cc94f6f10a0aca0790f46f4911835','2025-12-15'),('CUS004','Joseph Atieh',76555111,'Beirut - Achrafieh','DL-741258','Jrej123@@example.com','',NULL,NULL),('CUS005','Rami Kassem',78965412,'Tyre - Bustan','DL-159753','rami.kassem@example.com','',NULL,NULL),('CUS006','Maya Fares',76333111,'Baabda - Louaizeh','DL-852456','maya.fares@example.com','',NULL,NULL),('CUS007','Omar Chami',70100555,'Beirut - Tarik Jdideh','DL-963258','omar.chami@example.com','',NULL,NULL),('CUS008','Noor Barakat',71666222,'Jounieh - Maameltein','DL-258147','noor.barakat@example.com','',NULL,NULL),('CUS009','Kamal Darwish',78999888,'Zahle - Main St.','DL-357159','kamal.d@example.com','',NULL,NULL),('CUS010','Lina Khoury',76004455,'Byblos - Old Town','DL-444777','lina.khoury@example.com','',NULL,NULL);
-/*!40000 ALTER TABLE `customer` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `employee`
---
-
+-- employee
 DROP TABLE IF EXISTS `employee`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `employee` (
   `EMPID` varchar(20) NOT NULL,
   `EMPNAME` varchar(30) DEFAULT NULL,
@@ -210,143 +69,10 @@ CREATE TABLE `employee` (
   `remember_token` varchar(255) DEFAULT NULL,
   `remember_expiry` date DEFAULT NULL,
   PRIMARY KEY (`EMPID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
---
--- Dumping data for table `employee`
---
-
-LOCK TABLES `employee` WRITE;
-/*!40000 ALTER TABLE `employee` DISABLE KEYS */;
-INSERT INTO `employee` VALUES ('E001','Ahmad Saleh','Manager',96170000003,'ahmad@example.com','Yes','Hasan123',NULL,NULL),('E002','Lina Fares','Clerk',96170000004,'lina@example.com','No','',NULL,NULL),('EMP01','Hasan Jakmara','Manager',70111222,'Hasan.Jakmara123@rentcar.com','Yes','$2y$10$naGlGd3CD3ZALjrgrwXLx.2g8a5aEU.qQA.srv.9/1LoygdnKFCHa','9a22a6aa6f5b0ac3e15ce012103e441f','2025-12-13'),('EMP02','Haidar Habach','Super_Visor',76333444,'Haidar.Habach@rentcar.com','Yes','',NULL,NULL),('EMP03','Mouhamad Hammoud','Sales_Manager',78990011,'Mouhammad.Hammoud@rentcar.com','No','',NULL,NULL),('ONLINE','ONLINE_ONE','ALL',11111111,'ONLINE_SERVING@Yahoo.com','No','11',NULL,NULL);
-/*!40000 ALTER TABLE `employee` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Temporary view structure for view `late_rentals`
---
-
-DROP TABLE IF EXISTS `late_rentals`;
-/*!50001 DROP VIEW IF EXISTS `late_rentals`*/;
-SET @saved_cs_client     = @@character_set_client;
-/*!50503 SET character_set_client = utf8mb4 */;
-/*!50001 CREATE VIEW `late_rentals` AS SELECT 
- 1 AS `RENTALID`,
- 1 AS `CUSTNAME`,
- 1 AS `CARNAME`,
- 1 AS `PICKUPDATE`,
- 1 AS `DROPOFFDATE`*/;
-SET character_set_client = @saved_cs_client;
-
---
--- Table structure for table `maintanance`
---
-
-DROP TABLE IF EXISTS `maintanance`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `maintanance` (
-  `MAINTANANCEID` varchar(20) NOT NULL,
-  `CARID` varchar(20) NOT NULL,
-  `MAINDATE` date DEFAULT NULL,
-  `DESCRIPTON` varchar(100) DEFAULT NULL,
-  `COST` decimal(10,2) DEFAULT NULL,
-  PRIMARY KEY (`MAINTANANCEID`),
-  KEY `UNDERGOES_FK` (`CARID`),
-  CONSTRAINT `maintanance_ibfk_1` FOREIGN KEY (`CARID`) REFERENCES `car` (`CARID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `maintanance`
---
-
-LOCK TABLES `maintanance` WRITE;
-/*!40000 ALTER TABLE `maintanance` DISABLE KEYS */;
-/*!40000 ALTER TABLE `maintanance` ENABLE KEYS */;
-UNLOCK TABLES;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = utf8mb4 */ ;
-/*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
-DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER `TI_MAINTANANCE` BEFORE INSERT ON `maintanance` FOR EACH ROW BEGIN
-    -- Parent CAR must exist
-    IF (SELECT COUNT(*) FROM CAR WHERE CARID = NEW.CARID) = 0 THEN
-        SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'Parent CAR does not exist. Cannot insert MAINTANANCE.';
-    END IF;
-END */;;
-DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = utf8mb4 */ ;
-/*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
-DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER `TU_MAINTANANCE` BEFORE UPDATE ON `maintanance` FOR EACH ROW BEGIN
-    -- Only check if CARID is being changed
-    IF NEW.CARID <> OLD.CARID THEN
-        IF (SELECT COUNT(*) FROM CAR WHERE CARID = NEW.CARID) = 0 THEN
-            SIGNAL SQLSTATE '45000'
-                SET MESSAGE_TEXT = 'CAR does not exist. Cannot update MAINTANANCE.';
-        END IF;
-    END IF;
-END */;;
-DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
-
---
--- Table structure for table `payment`
---
-
-DROP TABLE IF EXISTS `payment`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `payment` (
-  `PAYMENTID` varchar(20) NOT NULL,
-  `RENTALID` varchar(20) NOT NULL,
-  `METHODE` varchar(20) DEFAULT NULL,
-  `PAYMNETDATE` date DEFAULT NULL,
-  `AMOUNT` decimal(10,2) DEFAULT NULL,
-  `PAYMENTSTATUS` varchar(20) DEFAULT NULL,
-  PRIMARY KEY (`PAYMENTID`),
-  KEY `HAS_FK` (`RENTALID`),
-  CONSTRAINT `payment_ibfk_1` FOREIGN KEY (`RENTALID`) REFERENCES `rental` (`RENTALID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `payment`
---
-
-LOCK TABLES `payment` WRITE;
-/*!40000 ALTER TABLE `payment` DISABLE KEYS */;
-/*!40000 ALTER TABLE `payment` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `rental`
---
-
+-- rental
 DROP TABLE IF EXISTS `rental`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `rental` (
   `RENTALID` varchar(20) NOT NULL,
   `CUSTID` varchar(20) NOT NULL,
@@ -362,253 +88,83 @@ CREATE TABLE `rental` (
   KEY `MAKE_FK` (`CUSTID`),
   KEY `RENTEDIN_FK` (`CARID`),
   KEY `HANDLE_FK` (`EMPID`),
-  CONSTRAINT `rental_ibfk_1` FOREIGN KEY (`CUSTID`) REFERENCES `customer` (`CUSTID`),
-  CONSTRAINT `rental_ibfk_2` FOREIGN KEY (`CARID`) REFERENCES `car` (`CARID`),
-  CONSTRAINT `rental_ibfk_3` FOREIGN KEY (`EMPID`) REFERENCES `employee` (`EMPID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
+  CONSTRAINT `rental_ibfk_1` FOREIGN KEY (`CUSTID`) REFERENCES `customer` (`CUSTID`) ON DELETE CASCADE,
+  CONSTRAINT `rental_ibfk_2` FOREIGN KEY (`CARID`) REFERENCES `car` (`CARID`) ON DELETE CASCADE,
+  CONSTRAINT `rental_ibfk_3` FOREIGN KEY (`EMPID`) REFERENCES `employee` (`EMPID`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
---
--- Dumping data for table `rental`
---
+-- maintanance
+DROP TABLE IF EXISTS `maintanance`;
+CREATE TABLE `maintanance` (
+  `MAINTANANCEID` varchar(20) NOT NULL,
+  `CARID` varchar(20) NOT NULL,
+  `MAINDATE` date DEFAULT NULL,
+  `DESCRIPTON` varchar(100) DEFAULT NULL,
+  `COST` decimal(10,2) DEFAULT NULL,
+  PRIMARY KEY (`MAINTANANCEID`),
+  KEY `UNDERGOES_FK` (`CARID`),
+  CONSTRAINT `maintanance_ibfk_1` FOREIGN KEY (`CARID`) REFERENCES `car` (`CARID`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-LOCK TABLES `rental` WRITE;
-/*!40000 ALTER TABLE `rental` DISABLE KEYS */;
-INSERT INTO `rental` VALUES ('CRENTAL001','CUS003','4','ONLINE','Ongoing','Beirut','Ouzaii','2025-12-15','2025-12-20',1280);
-/*!40000 ALTER TABLE `rental` ENABLE KEYS */;
-UNLOCK TABLES;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = utf8mb4 */ ;
-/*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
-DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER `prevent_rent_unavailable_car` BEFORE INSERT ON `rental` FOR EACH ROW BEGIN
-    DECLARE carStatus VARCHAR(20);
+-- payment
+DROP TABLE IF EXISTS `payment`;
+CREATE TABLE `payment` (
+  `PAYMENTID` varchar(20) NOT NULL,
+  `RENTALID` varchar(20) NOT NULL,
+  `METHODE` varchar(20) DEFAULT NULL,
+  `PAYMNETDATE` date DEFAULT NULL,
+  `AMOUNT` decimal(10,2) DEFAULT NULL,
+  `PAYMENTSTATUS` varchar(20) DEFAULT NULL,
+  PRIMARY KEY (`PAYMENTID`),
+  KEY `HAS_FK` (`RENTALID`),
+  CONSTRAINT `payment_ibfk_1` FOREIGN KEY (`RENTALID`) REFERENCES `rental` (`RENTALID`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-    SELECT CAR_STATUS INTO carStatus
-    FROM car
-    WHERE CARID = NEW.CARID;
+-- ================================
+-- FUNCTIONS
+-- ================================
 
-    IF carStatus <> 'available' THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Cannot rent this car because it is not available.';
-    END IF;
-END */;;
-DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = utf8mb4 */ ;
-/*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
-DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER `update_car_status_on_return` AFTER UPDATE ON `rental` FOR EACH ROW BEGIN
-    IF NEW.RENTALRETURN IS NOT NULL AND OLD.RENTALRETURN IS NULL THEN
-        UPDATE car
-        SET CAR_STATUS = 'available'
-        WHERE CARID = NEW.CARID;
-    END IF;
-END */;;
-DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
+DELIMITER $$
 
---
--- Temporary view structure for view `rental_details`
---
-
-DROP TABLE IF EXISTS `rental_details`;
-/*!50001 DROP VIEW IF EXISTS `rental_details`*/;
-SET @saved_cs_client     = @@character_set_client;
-/*!50503 SET character_set_client = utf8mb4 */;
-/*!50001 CREATE VIEW `rental_details` AS SELECT 
- 1 AS `RENTALID`,
- 1 AS `CUSTNAME`,
- 1 AS `CARNAME`,
- 1 AS `PICKUPDATE`,
- 1 AS `DROPOFFDATE`,
- 1 AS `STATUS`,
- 1 AS `DropOffLocation`,
- 1 AS `PickUpLocation`*/;
-SET character_set_client = @saved_cs_client;
-
---
--- Dumping events for database 'car_rent'
---
-
---
--- Dumping routines for database 'car_rent'
---
-/*!50003 DROP FUNCTION IF EXISTS `CarMaintenanceCost` */;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = utf8mb4 */ ;
-/*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
-DELIMITER ;;
-CREATE DEFINER=`root`@`localhost` FUNCTION `CarMaintenanceCost`(p_CARID VARCHAR(20)) RETURNS decimal(10,2)
-    DETERMINISTIC
+CREATE FUNCTION `CarMaintenanceCost`(p_CARID VARCHAR(20)) RETURNS decimal(10,2) DETERMINISTIC
 BEGIN
-    RETURN (
-        SELECT IFNULL(SUM(COST), 0)
-        FROM maintanance
-        WHERE CARID = p_CARID
-    );
-END ;;
-DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
-/*!50003 DROP FUNCTION IF EXISTS `CountCarRentals` */;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = utf8mb4 */ ;
-/*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
-DELIMITER ;;
-CREATE DEFINER=`root`@`localhost` FUNCTION `CountCarRentals`(p_CARID VARCHAR(20)) RETURNS int
-    DETERMINISTIC
+    RETURN (SELECT IFNULL(SUM(COST),0) FROM maintanance WHERE CARID=p_CARID);
+END$$
+
+CREATE FUNCTION `CountCarRentals`(p_CARID VARCHAR(20)) RETURNS int DETERMINISTIC
 BEGIN
-    RETURN (
-        SELECT COUNT(*) 
-        FROM rental
-        WHERE CARID = p_CARID
-    );
-END ;;
-DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
-/*!50003 DROP FUNCTION IF EXISTS `GetMainCarPhoto` */;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = utf8mb4 */ ;
-/*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
-DELIMITER ;;
-CREATE DEFINER=`root`@`localhost` FUNCTION `GetMainCarPhoto`(p_CARID VARCHAR(20)) RETURNS varchar(255) CHARSET utf8mb4
-    DETERMINISTIC
+    RETURN (SELECT COUNT(*) FROM rental WHERE CARID=p_CARID);
+END$$
+
+CREATE FUNCTION `GetMainCarPhoto`(p_CARID VARCHAR(20)) RETURNS varchar(255) DETERMINISTIC
 BEGIN
-    RETURN (
-        SELECT URL
-        FROM car_photos
-        WHERE CARID = p_CARID AND IS_MAIN = 1
-        LIMIT 1
-    );
-END ;;
-DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
-/*!50003 DROP FUNCTION IF EXISTS `IsCarAvailable` */;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = utf8mb4 */ ;
-/*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
-DELIMITER ;;
-CREATE DEFINER=`root`@`localhost` FUNCTION `IsCarAvailable`(p_CARID VARCHAR(20)) RETURNS tinyint(1)
-    DETERMINISTIC
+    RETURN (SELECT URL FROM car_photos WHERE CARID=p_CARID AND IS_MAIN=1 LIMIT 1);
+END$$
+
+CREATE FUNCTION `IsCarAvailable`(p_CARID VARCHAR(20)) RETURNS tinyint(1) DETERMINISTIC
 BEGIN
     DECLARE v_quantity INT;
-
-    SELECT Quantity
-    INTO v_quantity
-    FROM car
-    WHERE CARID = p_CARID;
-
-    IF v_quantity > 0 THEN
-        RETURN 1; -- true available
+    SELECT Quantity INTO v_quantity FROM car WHERE CARID=p_CARID;
+    IF v_quantity>0 THEN
+        RETURN 1;
     ELSE
-        RETURN 0; -- false not available
+        RETURN 0;
     END IF;
-END ;;
-DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
-/*!50003 DROP FUNCTION IF EXISTS `RentalDays` */;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = utf8mb4 */ ;
-/*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
-DELIMITER ;;
-CREATE DEFINER=`root`@`localhost` FUNCTION `RentalDays`(p_start DATE, p_end DATE) RETURNS int
-    DETERMINISTIC
+END$$
+
+CREATE FUNCTION `RentalDays`(p_start DATE,p_end DATE) RETURNS int DETERMINISTIC
 BEGIN
-    RETURN DATEDIFF(p_end, p_start);
-END ;;
+    RETURN DATEDIFF(p_end,p_start);
+END$$
+
 DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
-/*!50003 DROP FUNCTION IF EXISTS `TotalCars` */;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = utf8mb4 */ ;
-/*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
+
+
+-----------------------------------------------------
+--------------------procedure -----------------------------------------
+
 DELIMITER ;;
-CREATE DEFINER=`root`@`localhost` FUNCTION `TotalCars`() RETURNS int
-    DETERMINISTIC
-BEGIN
-    RETURN (
-        SELECT IFNULL(SUM(Quantity), 0)
-        FROM car
-    );
-END ;;
-DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
-/*!50003 DROP PROCEDURE IF EXISTS `AddCarWithPhotoSafe` */;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = utf8mb4 */ ;
-/*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
-DELIMITER ;;
-CREATE DEFINER=`root`@`localhost` PROCEDURE `AddCarWithPhotoSafe`(
+CREATE PROCEDURE `AddCarWithPhotoSafe`(
     IN p_CARID VARCHAR(20),
     IN p_MODEL VARCHAR(20),
     IN p_CARNAME VARCHAR(20),
@@ -627,7 +183,7 @@ BEGIN
 
     START TRANSACTION;
 
-    INSERT INTO car(CARID, MODEL, CARNAME, BRAND, HORSE_POWER, CAR_STATUS, YEAR, PLATENUMBER)
+    INSERT INTO car(CARID, MODEL, CARNAME, BRAND, HORSE_POWER, CAR_STATUS, CAR_YEAR, PLATENUMBER)
     VALUES(p_CARID, p_MODEL, p_CARNAME, p_BRAND, p_HP, p_STATUS, p_YEAR, p_PLATE);
 
     INSERT INTO car_photos(CARID, URL, IS_MAIN, CREATE_AT)
@@ -635,22 +191,7 @@ BEGIN
 
     COMMIT;
 END ;;
-DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
-/*!50003 DROP PROCEDURE IF EXISTS `AddCustomer` */;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = utf8mb4 */ ;
-/*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
-DELIMITER ;;
-CREATE DEFINER=`root`@`localhost` PROCEDURE `AddCustomer`(
+CREATE PROCEDURE `AddCustomer`(
     IN p_CUSTID VARCHAR(20),
     IN p_CUSTNAME VARCHAR(30),
     IN p_PHONE BIGINT,
@@ -662,22 +203,7 @@ BEGIN
     INSERT INTO customer(CUSTID, CUSTNAME, PHONE, ADDRESS, DRIVERLISENCE, EMAIL)
     VALUES(p_CUSTID, p_CUSTNAME, p_PHONE, p_ADDRESS, p_DRIVER, p_EMAIL);
 END ;;
-DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
-/*!50003 DROP PROCEDURE IF EXISTS `CalculateLateFees` */;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = utf8mb4 */ ;
-/*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
-DELIMITER ;;
-CREATE DEFINER=`root`@`localhost` PROCEDURE `CalculateLateFees`()
+CREATE PROCEDURE `CalculateLateFees`()
 BEGIN
     DECLARE done INT DEFAULT FALSE;
     DECLARE v_rentalID VARCHAR(20);
@@ -689,23 +215,20 @@ BEGIN
     DECLARE v_fine DECIMAL(10,2);
 
     DECLARE LateRentalCursor CURSOR FOR
-        SELECT RENTALID, CUSTNAME, CARNAME, RENTALDATE, RENTALRETURN
-        FROM late_rentals;
--- handler for cursor  
+        SELECT RENTALID, CUSTNAME, CARNAME, PICKUPDATE, DROPOFFDATE
+        FROM rental;
     DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
 
     OPEN LateRentalCursor;
 
     read_loop: LOOP
         FETCH LateRentalCursor INTO v_rentalID, v_custName, v_carName, v_rentalDate, v_rentalReturn;
-        IF done THEN
-            LEAVE read_loop;
-        END IF;
+        IF done THEN LEAVE read_loop; END IF;
 
         SET v_lateDays = DATEDIFF(CURDATE(), v_rentalReturn);
 
         IF v_lateDays > 0 THEN
-            SET v_fine = v_lateDays * 25; -- we suppose here the fine here is 25$ per day for example 
+            SET v_fine = v_lateDays * 25;
             SELECT CONCAT('Customer :', v_custName, 
                           ' he missed the car :', v_carName, 
                           ' for  ', v_lateDays, ' days and the amount is : ', v_fine) AS Message;
@@ -715,22 +238,7 @@ BEGIN
 
     CLOSE LateRentalCursor;
 END ;;
-DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
-/*!50003 DROP PROCEDURE IF EXISTS `CreateRental` */;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = utf8mb4 */ ;
-/*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
-DELIMITER ;;
-CREATE DEFINER=`root`@`localhost` PROCEDURE `CreateRental`(
+CREATE PROCEDURE `CreateRental`(
     IN p_CUSTID   VARCHAR(20),
     IN p_CARID    VARCHAR(20),
     IN p_EMPID    VARCHAR(20),
@@ -747,7 +255,6 @@ BEGIN
 
     START TRANSACTION;
 
-    -- Check available quantity
     SELECT Quantity
     INTO v_quantity
     FROM car
@@ -755,8 +262,6 @@ BEGIN
     FOR UPDATE;
 
     IF v_quantity > 0 THEN
-
-        -- Generate RENTALID 
         SELECT IFNULL(MAX(CAST(SUBSTRING(RENTALID, 8) AS UNSIGNED)), 0) 
         INTO v_max_id
         FROM rental;
@@ -764,11 +269,9 @@ BEGIN
         SET v_max_id = v_max_id + 1;
         SET v_RENTALID = CONCAT('CRENTAL', LPAD(v_max_id, 3, '0'));
 
-        -- Insert rental
         INSERT INTO rental (RENTALID, CUSTID, CARID, EMPID, PICKUPDATE, DROPOFFDATE, STATUS, PickUpLocation, DropOffLocation,FINALPRICE)
         VALUES (v_RENTALID, p_CUSTID, p_CARID, p_EMPID, p_DATE, d_DATE, 'Ongoing', pickUpLocation, dropOffLocation,FinalPrice);
 
-        -- Decrease quantity
         UPDATE car
         SET Quantity = Quantity - 1
         WHERE CARID = p_CARID;
@@ -782,22 +285,7 @@ BEGIN
     END IF;
 
 END ;;
-DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
-/*!50003 DROP PROCEDURE IF EXISTS `MakePayment` */;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = utf8mb4 */ ;
-/*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
-DELIMITER ;;
-CREATE DEFINER=`root`@`localhost` PROCEDURE `MakePayment`(
+CREATE PROCEDURE `MakePayment`(
     IN p_PAYMENTID VARCHAR(20),
     IN p_RENTALID VARCHAR(20),
     IN p_METHODE VARCHAR(20),
@@ -810,29 +298,13 @@ BEGIN
     INSERT INTO payment(PAYMENTID, RENTALID, METHODE, PAYMNETDATE, AMOUNT, PAYMENTSTATUS)
     VALUES(p_PAYMENTID, p_RENTALID, p_METHODE, p_DATE, p_AMOUNT, 'paid');
 
-    -- Optional: Update rental status
     UPDATE rental
     SET STATUS = 'paid'
     WHERE RENTALID = p_RENTALID;
 
     COMMIT;
 END ;;
-DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
-/*!50003 DROP PROCEDURE IF EXISTS `NotifyRentals` */;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = utf8mb4 */ ;
-/*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
-DELIMITER ;;
-CREATE DEFINER=`root`@`localhost` PROCEDURE `NotifyRentals`()
+CREATE PROCEDURE `NotifyRentals`()
 BEGIN
     DECLARE done INT DEFAULT FALSE;
     DECLARE v_rentalID VARCHAR(20);
@@ -841,30 +313,24 @@ BEGIN
     DECLARE v_rentalReturn DATE;
     DECLARE v_daysDiff INT;
 
-    -- for the rented..
     DECLARE rentalCursor CURSOR FOR
         SELECT RENTALID, CUSTID,CARID, DROPOFFDATE
         FROM rental
         WHERE STATUS='Ongoing';
-	-- handler
     DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
 
     OPEN rentalCursor;
 
     read_loop: LOOP
         FETCH rentalCursor INTO v_rentalID,v_custId,v_car_Id, v_rentalReturn;
-        IF done THEN
-            LEAVE read_loop;
-        END IF;
+        IF done THEN LEAVE read_loop; END IF;
 
         SET v_daysDiff = DATEDIFF(v_rentalReturn, CURDATE());
 
         IF v_daysDiff < 0 THEN
-            -- late client 
             SELECT CONCAT('the client ', v_custId, 'Late in returning the car', v_car_Id, 
                           '..The daily fine is being calculated..') AS Message;
         ELSEIF v_daysDiff <= 2 THEN
-            -- Return reminder coming soon
             SELECT CONCAT('Reminder for the customer ', v_custId, 
                           'Car return appointment ', v_car_Id, 
                           ' after ', v_daysDiff, ' days') AS Message;
@@ -874,22 +340,7 @@ BEGIN
 
     CLOSE rentalCursor;
 END ;;
-DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
-/*!50003 DROP PROCEDURE IF EXISTS `UpdateCarStatus` */;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = utf8mb4 */ ;
-/*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
-DELIMITER ;;
-CREATE DEFINER=`root`@`localhost` PROCEDURE `UpdateCarStatus`()
+CREATE PROCEDURE `UpdateCarStatus`()
 BEGIN
     DECLARE done INT DEFAULT FALSE;
     DECLARE v_carID VARCHAR(20);
@@ -899,7 +350,6 @@ BEGIN
 
     DECLARE carCursor CURSOR FOR
         SELECT CARID, Quantity FROM car;
-
     DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
 
     START TRANSACTION;
@@ -908,16 +358,12 @@ BEGIN
 
     read_loop: LOOP
         FETCH carCursor INTO v_carID, v_quantity;
-        IF done THEN
-            LEAVE read_loop;
-        END IF;
-
+        IF done THEN LEAVE read_loop; END IF;
 
         SELECT COUNT(*) INTO v_maintenance_count
         FROM maintanance
         WHERE CARID = v_carID AND MAINDATE = CURDATE();
 
- 
         IF v_maintenance_count > 0 THEN
             SET v_status = 'Maintenance';
         ELSEIF v_quantity <= 0 THEN
@@ -934,72 +380,3 @@ BEGIN
     COMMIT;
 END ;;
 DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
-
---
--- Final view structure for view `available_cars`
---
-
-/*!50001 DROP VIEW IF EXISTS `available_cars`*/;
-/*!50001 SET @saved_cs_client          = @@character_set_client */;
-/*!50001 SET @saved_cs_results         = @@character_set_results */;
-/*!50001 SET @saved_col_connection     = @@collation_connection */;
-/*!50001 SET character_set_client      = utf8mb4 */;
-/*!50001 SET character_set_results     = utf8mb4 */;
-/*!50001 SET collation_connection      = utf8mb4_0900_ai_ci */;
-/*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
-/*!50001 VIEW `available_cars` AS select `car`.`CARID` AS `CARID`,`car`.`CARNAME` AS `CARNAME`,`car`.`BRAND` AS `BRAND`,`car`.`HORSE_POWER` AS `HORSE_POWER`,`car`.`CAR_YEAR` AS `CAR_YEAR`,`car`.`PLATENUMBER` AS `PLATENUMBER` from `car` where ((`car`.`CAR_STATUS` = 'Available') and (`car`.`Quantity` > 0)) */;
-/*!50001 SET character_set_client      = @saved_cs_client */;
-/*!50001 SET character_set_results     = @saved_cs_results */;
-/*!50001 SET collation_connection      = @saved_col_connection */;
-
---
--- Final view structure for view `late_rentals`
---
-
-/*!50001 DROP VIEW IF EXISTS `late_rentals`*/;
-/*!50001 SET @saved_cs_client          = @@character_set_client */;
-/*!50001 SET @saved_cs_results         = @@character_set_results */;
-/*!50001 SET @saved_col_connection     = @@collation_connection */;
-/*!50001 SET character_set_client      = utf8mb4 */;
-/*!50001 SET character_set_results     = utf8mb4 */;
-/*!50001 SET collation_connection      = utf8mb4_0900_ai_ci */;
-/*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
-/*!50001 VIEW `late_rentals` AS select `r`.`RENTALID` AS `RENTALID`,`c`.`CUSTNAME` AS `CUSTNAME`,`ca`.`CARNAME` AS `CARNAME`,`r`.`PICKUPDATE` AS `PICKUPDATE`,`r`.`DROPOFFDATE` AS `DROPOFFDATE` from ((`rental` `r` join `customer` `c` on((`r`.`CUSTID` = `c`.`CUSTID`))) join `car` `ca` on((`r`.`CARID` = `ca`.`CARID`))) where (`r`.`STATUS` = 'Late') */;
-/*!50001 SET character_set_client      = @saved_cs_client */;
-/*!50001 SET character_set_results     = @saved_cs_results */;
-/*!50001 SET collation_connection      = @saved_col_connection */;
-
---
--- Final view structure for view `rental_details`
---
-
-/*!50001 DROP VIEW IF EXISTS `rental_details`*/;
-/*!50001 SET @saved_cs_client          = @@character_set_client */;
-/*!50001 SET @saved_cs_results         = @@character_set_results */;
-/*!50001 SET @saved_col_connection     = @@collation_connection */;
-/*!50001 SET character_set_client      = utf8mb4 */;
-/*!50001 SET character_set_results     = utf8mb4 */;
-/*!50001 SET collation_connection      = utf8mb4_0900_ai_ci */;
-/*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
-/*!50001 VIEW `rental_details` AS select `r`.`RENTALID` AS `RENTALID`,`c`.`CUSTNAME` AS `CUSTNAME`,`ca`.`CARNAME` AS `CARNAME`,`r`.`PICKUPDATE` AS `PICKUPDATE`,`r`.`DROPOFFDATE` AS `DROPOFFDATE`,`r`.`STATUS` AS `STATUS`,`r`.`DropOffLocation` AS `DropOffLocation`,`r`.`PickUpLocation` AS `PickUpLocation` from ((`rental` `r` join `customer` `c` on((`r`.`CUSTID` = `c`.`CUSTID`))) join `car` `ca` on((`r`.`CARID` = `ca`.`CARID`))) */;
-/*!50001 SET character_set_client      = @saved_cs_client */;
-/*!50001 SET character_set_results     = @saved_cs_results */;
-/*!50001 SET collation_connection      = @saved_col_connection */;
-/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
-
-/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
-/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
-/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
-/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
-/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
-/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
-/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
-
--- Dump completed on 2025-12-15 16:57:55
