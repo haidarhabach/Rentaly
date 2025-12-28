@@ -1,3 +1,244 @@
+<?php
+session_start();
+include("../includes/db.php");
+//check if login
+if (!isset($_SESSION['$employee_id'])) {
+    header("Location:login.php");
+    exit();
+}
+$employee_id = $_SESSION['$employee_id'];
+//get employee detail
+$employee_query = "SELECT * from employee where EMPID=?";
+$stmt = $connect->prepare($employee_query);
+$stmt->bind_param("s", $employee_id);
+$stmt->execute();
+$employee_result = $stmt->get_result();
+$employee = $employee_result->fetch_assoc();
+if (!$employee) {
+    header("Location:login.php");
+    exit();
+}
+// statistic from database
+//total orders
+$total_order_query = "SELECT COUNT(*)as total from  rental";
+$total_order_result = $connect->query($total_order_query);
+$total_order = $total_order_result->fetch_assoc()["total"];
+//pending orders
+$pending_order_query = "SELECT COUNT(*)as pending from rental where status=outgoing";
+$pending_order_result = $connect->query($pending_order_query);
+$pending_order = $pending_order_result->fetch_assoc()["pending"];
+
+// aproved orders
+$aproved_order_query = "SELECT COUNT(DISTINCT RENTAL_ID) as approved from payment  
+WHERE PAYEMENTSTATUS='paid'";
+$approved_order_result = $connect->query($aproved_order_query);
+$approved_order = $approved_order_result->fetch_assoc()["approved"];
+
+//rejected orders
+$rejected_order_query = "SELECT COUNT(*) as rejected from rental WHERE status ='rejected'";
+$rejected_order_result = $connect->query($aproved_order_query);
+$rejected_order = $rejected_order_result->fetch_assoc()["rejected"];
+// cars_statistic
+$total_car_query = "SELECT SUM(Quantity) as total from car";
+$total_car_result = $connect->query($total_car_query);
+$total_car_row = $total_car_result->fetch_assoc();
+$total_car = $total_car_row['total'] ?: 0;
+
+$available_car_query = "SELECT SUM(Quantity) as avilable  from car WHERE Quantity>0";
+$available_car_result = $connect->query($available_car_query);
+$available_car_row = $available_car_result->fetch_assoc();
+$available_car = $available_car_row['available'] ?: 0;
+//low_stock
+
+$low_stock_car_query = "SELECT SUM(Quantity) as low_stock from car WHERE Quantity<3 AND Quantity >0";
+$low_stock_car_result = $connect->query($low_stock_car_query);
+$low_stock_car_row = $low_stock_car_result->fetch_assoc();
+$low_stock_car = $low_stock_car_row['low_stock'] ?: 0;
+// pending order show for dashbord
+$pending_order_list_query = "SELECT * FROM rental WHERE status='Outgoing' LIMIT 4";
+$pending_order_list_result = $connect->query($pending_order_list_query);
+//orderr mangement
+$all_order_query = "SELECT * from rental ORDER BY PICKUPDATE DESC";
+$all_order_result = $connect->query($all_order_query);
+//costumer for order
+
+$costumer_query = "SELECT CUSTID ,CUSTNAME from customer";
+$costumer_result = $connect->query($costumer_query);
+$costumer = [];
+while ($cust = $costumer_result->fetch_assoc()) {
+    $costumer[$cust['CUSTID']] = $cust['CUSTNAME'];
+}
+//information of cars
+$car_details_query = "SELECT CARID,CARNAME,car_type,bags,Seats,Doors,daily_price from car";
+$car_details_result = $connect->query($car_details_query);
+$car_details = [];
+while ($car = $car_details_result->fetch_assoc()) {
+    $car_details[$car['CARID']] = $car;
+}
+//payment stauts
+$payment_query = "SELECT RENTALID,PAYMENTSTATUS from payment";
+$payment_result = $connect->query($payment_query);
+$payment_status = [];
+while ($payment = $payment_result->fetch_assoc()) {
+    $payment_status[$payment["RENTALID"]] = $payment["PAYMENTSTATUS"];
+}
+//get photo
+$get_photo_query = "SELECT CARID,URL FROM car_photo where IS_MAIN=1";
+$get_photo_result = $connect->query($get_photo_query);
+$get_photo = [];
+while ($photo = $get_photo_result->fretch_assoc()) {
+    $get_photo[$photo["CARID"]] = $photo["URL"];
+}
+
+//car mangement
+$all_car_query = "SELECT * from car ORDER BY CARNAME";
+$all_car_result = $connect->query($all_car_query);
+// handle form
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    //add new car
+    if (isset($_POST["add_car"])) {
+        $state = $connect->prepare("SELECT CARTID FROM car ORDER BY CARID DESC LIMIT 1");
+        $state->execute();
+        $result = $state->get_result();
+        $row = $result->fetch_assoc();
+
+        if ($row) {
+            $carid = $row['CARID'];
+            $code = substr($carid, 0, 3);
+            $nb = substr($custid, 3);
+            $nb = (int)$nb + 1;
+            $id = $code . str_pad($nb, 3, "0", STR_PAD_LEFT);
+        } else {
+            $id = "CAR001";
+        }
+
+
+        $model = $connect->real_escape_string($_POST['model']);
+        $carname = $connect->real_escape_string($_POST['carname']);
+        $brand = $connect->real_escape_string($_POST['brand']);
+        $horse_power = intval($_POST['horse_power']);
+        $car_year = intval($_POST['car_year']);
+        $platenumber = $connect->real_escape_string($_POST['platenumber']);
+        $daily_price = floatval($_POST['daily_price']);
+        $car_type = $connect->real_escape_string($_POST['car_type']);
+        $bags = $connect->real_escape_string($_POST['bags']);
+        $doors = $connect->real_escape_string($_POST['doors']);
+        $seats = $connect->real_escape_string($_POST['seats']);
+        $quantity = intval($_POST['quantity']);
+        $description = $connect->real_escape_string($_POST['description']);
+        $color = $connect->real_escape_string($_POST['color']);
+        $upload_dir = "../assets/img/";
+        $photo_url = "";
+        if (!file_exists($upload_dir)) {
+            mkdir($upload_dir, 0777, true);
+        }
+        if (isset($_FILES["car_image"]) && $_FILES["car_image"]["error"] == 0) {
+            $file_type = $_FILES["car_image"]["type"];
+            $file_name = $_FILES["car_image"]["name"];
+            $file_tmp = $_FILES["car_image"]["tmp_name"];
+            $file_extension = strtolower(pathinfo($file_name), PATHINFO_EXTENSION);
+            $unique_filename = uniqid() . '_' . time() . '.' . $file_extension;
+            $destination = $upload_dir . $unique_filename;
+            if (move_uploaded_file($file_tmp, $destination)) {
+                $photo_url = "assets/img/" . $unique_filename;
+            }
+        }
+
+
+        $insert_car_query = "INSERT INTO car (CARID, MODEL, CARNAME, BRAND, HORSE_POWER, CAR_STATUS, CAR_YEAR, PLATENUMBER,
+daily_price, car_type, bags, Doors, Seats, Quantity, description, color)
+VALUES (?, ?, ?, ?, ?, 'Available', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        $stmt = $connect->prepare($insert_car_query);
+        $stmt->bind_param(
+            "sssssisssssssss",
+            $id,
+            $model,
+            $carname,
+            $brand,
+            $horse_power,
+            $car_year,
+            $platenumber,
+            $daily_price,
+            $car_type,
+            $bags,
+            $doors,
+            $seats,
+            $quantity,
+            $description,
+            $color
+        );
+
+        if ($stmt->execute()) {
+            if (!empty($photo_url)) {
+                $insert_photo_query = "INSERT INTO car_photos(CARID,URL,IS_MAIN,CREATE_AT)
+            VALUES(?,?,1,CURDATE())";
+                $stmt2 = $connect->prepare($insert_photo_query);
+                $stmt2->bind_param("ss", $id, $photo_url);
+                $stnmt2->execute();
+                $_SESSION['success'] = "car added successfully";
+            }
+        }
+    }
+
+    //update car quantity
+    if(isset($_POST["update_quantity"])){
+        $car_id=$connect->real_escape_string($_POST["carid"]);
+        $quantity=intval($_POST["quantity"]);
+        $update_query="UPDATE car SET Quantity=$quantity WHERE CARID='$car_id'";
+        if($connect->query($update_query)){
+            $_SESSION['success']="quaantity updated successfully";
+        }
+    }
+//delete car
+if(isset($_POST["delet_car"])){
+       $car_id=$connect->real_escape_string($_POST["carid"]);
+       $delete_photo_query="DELETE FROM car_photos WHERE CARID='$car_id'";
+       $connect->query($delete_photo_query);
+       $delete_query="DELETE FROM car where CARID='$car_id'";
+       if($connect->query($delete_query)){
+        $_SESSION['success']="car deleted successffully";
+       }
+}
+//handle order
+if(isset($_POST["order_action"])){
+   $rental_id=$connect->real_escape_string($_POST["rentalid"]);
+      $action=$connect->real_escape_string($_POST["action"]);
+      if($action==="approve"){
+        $update_query="UPDATE rental SET STATUS='Approved' where RENTALID='$rental_id' ";
+        if($connect->query($update_query)){
+            $_SESSION["success"]="order approved successfully";
+        }
+
+      }
+      elseif($action==="reject"){
+        $update_query="UPDATE rental SET STATUS='Rejected' where RENTALID='$rental_id'";
+        if($connect->query($update_query)){
+            $car_querry="SELECT CARID from rental where RENTALID='$rental_id'";
+            $car_result=$connect->query($car_querry);
+            if($car_row=$car_result->fetch_assoc()){
+                $carid=$car_row['CARID'];
+                $update_quantity_query="UPDATE car SET Quantity=Quantity+1 where CARID='$carid'";
+                $connect->query($update_quantity_query);
+            }
+            $_SESSION["success"]="order rejected successfully";
+        }
+      }
+
+
+}
+}
+
+
+?>
+
+
+
+
+
+
+
+
+
 <!DOCTYPE html>
 <html lang="en">
 
@@ -13,7 +254,7 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Montserrat:wght@400;500;600&display=swap"
         rel="stylesheet">
-        <link rel="stylesheet" href="../assets/css/style.css">
+    <link rel="stylesheet" href="../assets/css/style.css">
     <style>
         :root {
             --primary-color: #2ecc71;
@@ -76,6 +317,7 @@
             top: 30px;
             height: fit-content;
         }
+
         /* Fix left side alignment */
         .topbar-left {
             display: flex;
@@ -446,7 +688,8 @@
             margin-top: 15px;
         }
 
-        .btn-edit, .btn-delete {
+        .btn-edit,
+        .btn-delete {
             padding: 8px 15px;
             border-radius: 6px;
             font-size: 0.85rem;
@@ -1022,6 +1265,7 @@
                 opacity: 0;
                 transform: translateY(20px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
@@ -1084,11 +1328,11 @@
                         <li class="nav-item">
                             <a class="nav-link" href="index.php">Home</a>
                         </li>
-                        
+
                         <li class="nav-item">
                             <a class="nav-link" href="myAccountEmployee.php">Manage Cars</a>
                         </li>
-                        
+
                     </ul>
                 </div>
             </div>
@@ -1116,7 +1360,7 @@
                     <div class="dashboard-sidebar">
                         <div class="sidebar-card fade-in">
                             <div class="employee-profile">
-                                
+
                                 <h3 class="employee-name">Haidar Habach</h3>
                                 <div class="employee-role">Admin</div>
                                 <p class="mt-3" style="font-size: 0.9rem; opacity: 0.9;">Employee ID: EMP-2023-045</p>
@@ -1135,7 +1379,7 @@
                                     <i class="fas fa-car"></i>
                                     <span>Car Management</span>
                                 </button>
-                                
+
                                 <button class="menu-button" data-section="signout">
                                     <i class="fas fa-sign-out-alt"></i>
                                     <span>Sign Out</span>
@@ -1238,7 +1482,7 @@
                                     <div class="order-id">ORD-2023-001 - Jeep Renegade</div>
                                     <div class="order-status status-pending">Pending Approval</div>
                                 </div>
-                                
+
                                 <div class="order-details">
                                     <div class="order-car">
                                         <div class="car-image">
@@ -1257,7 +1501,7 @@
                                             </div>
                                         </div>
                                     </div>
-                                    
+
                                     <div class="order-info">
                                         <div class="info-item">
                                             <span class="info-label">Customer:</span>
@@ -1281,20 +1525,20 @@
                                         </div>
                                     </div>
                                 </div>
-                                
+
                                 <div class="order-actions">
                                     <button class="btn-action btn-reject" data-action="reject" onclick="handleOrderAction('reject', 'ORD-2023-001')">Reject</button>
                                     <button class="btn-action btn-approve" data-action="approve" onclick="handleOrderAction('approve', 'ORD-2023-001')">Approve</button>
                                 </div>
                             </div>
-                            
+
                             <!-- Pending Order 2 -->
                             <div class="order-item pending" data-order-id="ORD-2023-002">
                                 <div class="order-header">
                                     <div class="order-id">ORD-2023-002 - BMW M2</div>
                                     <div class="order-status status-pending">Pending Approval</div>
                                 </div>
-                                
+
                                 <div class="order-details">
                                     <div class="order-car">
                                         <div class="car-image">
@@ -1313,7 +1557,7 @@
                                             </div>
                                         </div>
                                     </div>
-                                    
+
                                     <div class="order-info">
                                         <div class="info-item">
                                             <span class="info-label">Customer:</span>
@@ -1337,7 +1581,7 @@
                                         </div>
                                     </div>
                                 </div>
-                                
+
                                 <div class="order-actions">
                                     <button class="btn-action btn-reject" data-action="reject" onclick="handleOrderAction('reject', 'ORD-2023-002')">Reject</button>
                                     <button class="btn-action btn-approve" data-action="approve" onclick="handleOrderAction('approve', 'ORD-2023-002')">Approve</button>
@@ -1367,7 +1611,7 @@
                                         <div class="order-id">ORD-2023-001 - Jeep Renegade</div>
                                         <div class="order-status status-pending">Pending Approval</div>
                                     </div>
-                                    
+
                                     <div class="order-details">
                                         <div class="order-car">
                                             <div class="car-image">
@@ -1386,7 +1630,7 @@
                                                 </div>
                                             </div>
                                         </div>
-                                        
+
                                         <div class="order-info">
                                             <div class="info-item">
                                                 <span class="info-label">Customer:</span>
@@ -1410,7 +1654,7 @@
                                             </div>
                                         </div>
                                     </div>
-                                    
+
                                     <div class="order-actions">
                                         <button class="btn-action btn-reject" onclick="handleOrderAction('reject', 'ORD-2023-001')">Reject</button>
                                         <button class="btn-action btn-approve" onclick="handleOrderAction('approve', 'ORD-2023-001')">Approve</button>
@@ -1423,7 +1667,7 @@
                                         <div class="order-id">ORD-2023-002 - BMW M2</div>
                                         <div class="order-status status-pending">Pending Approval</div>
                                     </div>
-                                    
+
                                     <div class="order-details">
                                         <div class="order-car">
                                             <div class="car-image">
@@ -1442,7 +1686,7 @@
                                                 </div>
                                             </div>
                                         </div>
-                                        
+
                                         <div class="order-info">
                                             <div class="info-item">
                                                 <span class="info-label">Customer:</span>
@@ -1466,7 +1710,7 @@
                                             </div>
                                         </div>
                                     </div>
-                                    
+
                                     <div class="order-actions">
                                         <button class="btn-action btn-reject" onclick="handleOrderAction('reject', 'ORD-2023-002')">Reject</button>
                                         <button class="btn-action btn-approve" onclick="handleOrderAction('approve', 'ORD-2023-002')">Approve</button>
@@ -1479,7 +1723,7 @@
                                         <div class="order-id">ORD-2023-003 - Ferrari Enzo</div>
                                         <div class="order-status status-approved">Approved</div>
                                     </div>
-                                    
+
                                     <div class="order-details">
                                         <div class="order-car">
                                             <div class="car-image">
@@ -1498,7 +1742,7 @@
                                                 </div>
                                             </div>
                                         </div>
-                                        
+
                                         <div class="order-info">
                                             <div class="info-item">
                                                 <span class="info-label">Customer:</span>
@@ -1522,8 +1766,8 @@
                                             </div>
                                         </div>
                                     </div>
-                                    
-                                    
+
+
                                 </div>
 
                                 <!-- Order 4: Rejected -->
@@ -1532,7 +1776,7 @@
                                         <div class="order-id">ORD-2023-004 - Toyota Rav 4</div>
                                         <div class="order-status status-rejected">Rejected</div>
                                     </div>
-                                    
+
                                     <div class="order-details">
                                         <div class="order-car">
                                             <div class="car-image">
@@ -1551,7 +1795,7 @@
                                                 </div>
                                             </div>
                                         </div>
-                                        
+
                                         <div class="order-info">
                                             <div class="info-item">
                                                 <span class="info-label">Customer:</span>
@@ -1575,8 +1819,8 @@
                                             </div>
                                         </div>
                                     </div>
-                                    
-                                    
+
+
                                 </div>
                             </div>
 
@@ -1615,7 +1859,7 @@
                             <div id="view-cars" class="car-tab-content active">
                                 <div class="d-flex justify-content-between align-items-center mb-4">
                                     <h5 class="mb-0">Fleet Overview</h5>
-                                    
+
                                 </div>
 
                                 <div class="car-list" id="car-list-container">
@@ -1648,7 +1892,7 @@
                                                 </span>
                                             </div>
                                             <div class="car-actions">
-                                                
+
                                                 <button class="btn-delete" onclick="deleteCar('CAR-001')">
                                                     <i class="fas fa-trash me-1"></i>Delete
                                                 </button>
@@ -1685,7 +1929,7 @@
                                                 </span>
                                             </div>
                                             <div class="car-actions">
-                                                
+
                                                 <button class="btn-delete" onclick="deleteCar('CAR-002')">
                                                     <i class="fas fa-trash me-1"></i>Delete
                                                 </button>
@@ -1722,7 +1966,7 @@
                                                 </span>
                                             </div>
                                             <div class="car-actions">
-                                                
+
                                                 <button class="btn-delete" onclick="deleteCar('CAR-003')">
                                                     <i class="fas fa-trash me-1"></i>Delete
                                                 </button>
@@ -1759,7 +2003,7 @@
                                                 </span>
                                             </div>
                                             <div class="car-actions">
-                                                
+
                                                 <button class="btn-delete" onclick="deleteCar('CAR-004')">
                                                     <i class="fas fa-trash me-1"></i>Delete
                                                 </button>
@@ -1780,7 +2024,7 @@
                             <!-- Add New Car Tab -->
                             <div id="add-car" class="car-tab-content">
                                 <h5 class="mb-4">Add New Car to Inventory</h5>
-                                
+
                                 <form id="addCarForm" class="add-car-form" onsubmit="return addNewCar()">
                                     <!-- Basic Information -->
                                     <div class="form-section">
@@ -1839,7 +2083,7 @@
                                                 </select>
                                             </div>
                                         </div>
-                                        
+
                                         <div class="form-row">
                                             <div class="form-group">
                                                 <label for="car-seats">Number of Seats *</label>
@@ -1872,7 +2116,7 @@
                                                     <button type="button" class="qty-btn" id="increase-qty" onclick="increaseQuantity()">+</button>
                                                 </div>
                                             </div>
-                                            
+
                                         </div>
                                     </div>
 
@@ -1918,7 +2162,7 @@
                                                 <th>Available</th>
                                                 <th>Rented</th>
                                                 <th>Update Quantity</th>
-                                                
+
                                             </tr>
                                         </thead>
                                         <tbody id="quantity-table">
@@ -1945,9 +2189,9 @@
                                                         </button>
                                                     </div>
                                                 </td>
-                                                
+
                                             </tr>
-                                            
+
                                             <!-- Car 2 Quantity -->
                                             <tr data-car-id="CAR-002">
                                                 <td>
@@ -1971,9 +2215,9 @@
                                                         </button>
                                                     </div>
                                                 </td>
-                                                
+
                                             </tr>
-                                            
+
                                             <!-- Car 3 Quantity -->
                                             <tr data-car-id="CAR-003">
                                                 <td>
@@ -1997,9 +2241,9 @@
                                                         </button>
                                                     </div>
                                                 </td>
-                                                
+
                                             </tr>
-                                            
+
                                             <!-- Car 4 Quantity -->
                                             <tr data-car-id="CAR-004">
                                                 <td>
@@ -2023,7 +2267,7 @@
                                                         </button>
                                                     </div>
                                                 </td>
-                                                
+
                                             </tr>
                                         </tbody>
                                     </table>
@@ -2057,21 +2301,21 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Simple JavaScript for UI interactions (no dynamic data loading)
-        
+
         // Navigation functionality
-        document.addEventListener('DOMContentLoaded', function () {
+        document.addEventListener('DOMContentLoaded', function() {
             // Menu button click handlers
             const menuButtons = document.querySelectorAll('.menu-button');
             const contentSections = document.querySelectorAll('.content-section');
-            
+
             menuButtons.forEach(button => {
-                button.addEventListener('click', function () {
+                button.addEventListener('click', function() {
                     const sectionId = this.getAttribute('data-section');
-                    
+
                     // Update active menu button
                     menuButtons.forEach(btn => btn.classList.remove('active'));
                     this.classList.add('active');
-                    
+
                     // Show corresponding content section
                     contentSections.forEach(section => {
                         section.classList.remove('active');
@@ -2081,11 +2325,11 @@
                     });
                 });
             });
-            
+
             // Initialize first tab in car management
             switchCarTab('view-cars');
         });
-        
+
         // Car Management Tabs
         function switchCarTab(tabId) {
             // Update active tab
@@ -2095,7 +2339,7 @@
                     tab.classList.add('active');
                 }
             });
-            
+
             // Show corresponding content
             document.querySelectorAll('.car-tab-content').forEach(content => {
                 content.classList.remove('active');
@@ -2104,23 +2348,23 @@
                 }
             });
         }
-        
+
         // Order filtering
         function filterOrders(status) {
             const orders = document.querySelectorAll('.order-item');
             const emptyState = document.getElementById('empty-orders');
-            
+
             // Update filter button active state
             document.querySelectorAll('.filter-btn').forEach(btn => {
                 btn.classList.remove('active');
-                if (btn.textContent.includes(status.charAt(0).toUpperCase() + status.slice(1)) || 
+                if (btn.textContent.includes(status.charAt(0).toUpperCase() + status.slice(1)) ||
                     (status === 'all' && btn.textContent.includes('All Orders'))) {
                     btn.classList.add('active');
                 }
             });
-            
+
             let visibleCount = 0;
-            
+
             orders.forEach(order => {
                 const orderStatus = order.getAttribute('data-status');
                 if (status === 'all' || orderStatus === status) {
@@ -2130,7 +2374,7 @@
                     order.style.display = 'none';
                 }
             });
-            
+
             // Show/hide empty state
             if (visibleCount === 0) {
                 emptyState.style.display = 'block';
@@ -2138,17 +2382,17 @@
                 emptyState.style.display = 'none';
             }
         }
-        
-        
-        
+
+
+
         // Car filtering
         function filterCars() {
             const filter = document.getElementById('car-filter').value;
             const cars = document.querySelectorAll('.car-item');
             const emptyState = document.getElementById('empty-cars');
-            
+
             let visibleCount = 0;
-            
+
             cars.forEach(car => {
                 const status = car.getAttribute('data-status');
                 if (filter === 'all' || status === filter) {
@@ -2158,7 +2402,7 @@
                     car.style.display = 'none';
                 }
             });
-            
+
             // Show/hide empty state
             if (visibleCount === 0) {
                 emptyState.style.display = 'block';
@@ -2166,9 +2410,6 @@
                 emptyState.style.display = 'none';
             }
         }
-        
-        
-        
     </script>
 </body>
 
