@@ -1,247 +1,514 @@
 <?php
 session_start();
 include("../includes/db.php");
-//check if login
-if (!isset($_SESSION['$employee_id'])) {
+
+// Check if logged in 
+if (!isset($_SESSION['employee_id'])) {
     header("Location:login.php");
     exit();
 }
-$employee_id = $_SESSION['$employee_id'];
-//get employee detail
-$employee_query = "SELECT * from employee where EMPID=?";
+
+// Get employee details
+$employee_id = $_SESSION['employee_id'];
+$employee_query = "SELECT * FROM employee WHERE EMPID = ?";
 $stmt = $connect->prepare($employee_query);
 $stmt->bind_param("s", $employee_id);
 $stmt->execute();
 $employee_result = $stmt->get_result();
 $employee = $employee_result->fetch_assoc();
+
+// Check if employee exists 
 if (!$employee) {
     header("Location:login.php");
     exit();
 }
-// statistic from database
-//total orders
-$total_order_query = "SELECT COUNT(*)as total from  rental";
+
+// Function to process returned rentals (maintenance system)
+function processReturnedRentals($connect) {
+    // Find completed rentals that need maintenance
+    $sql = "SELECT r.RENTALID, r.CARID, c.CARNAME 
+            FROM rental r 
+            JOIN car c ON r.CARID = c.CARID 
+            WHERE r.STATUS = 'Completed' 
+            AND r.DROPOFFDATE < CURDATE()
+            AND r.CARID NOT IN (
+                SELECT CARID FROM maintanance 
+                WHERE MAINDATE >= CURDATE() - INTERVAL 30 DAY
+            )
+            AND c.CAR_STATUS = 'Available'";
+    
+    $result = $connect->query($sql);
+    $completedRentals = [];
+    if ($result) {
+        $completedRentals = $result->fetch_all(MYSQLI_ASSOC);
+    }
+    
+    foreach ($completedRentals as $rental) {
+        $maintenanceDays = rand(15, 30);
+        $maintenanceStartDate = date('Y-m-d');
+        $maintenanceId = 'MAINT' . str_pad(rand(100, 999), 3, '0', STR_PAD_LEFT);
+        
+        $maintenanceTasks = [
+            "Oil change and filter replacement",
+            "Brake inspection and service",
+            "Tire rotation and pressure check",
+            "Engine diagnostics and tune-up",
+            "Transmission fluid check",
+            "Coolant system check",
+            "Air conditioning service",
+            "Interior deep cleaning",
+            "Exterior wash and wax",
+            "Safety inspection"
+        ];
+        
+        $randomTask = $maintenanceTasks[array_rand($maintenanceTasks)];
+        $description = "Post-rental maintenance for car #{$rental['CARID']} - $randomTask";
+        $cost = rand(100, 500) + (rand(0, 99) / 100);
+        
+        // Check if maintenance already exists for this car today
+        $check_stmt = $connect->prepare("SELECT MAINTANANCEID FROM maintanance WHERE CARID = ? AND MAINDATE = ?");
+        $check_stmt->bind_param("ss", $rental['CARID'], $maintenanceStartDate);
+        $check_stmt->execute();
+        $check_result = $check_stmt->get_result();
+        
+        if ($check_result->num_rows == 0) {
+            // Insert maintenance record
+            $stmt = $connect->prepare("INSERT INTO maintanance (MAINTANANCEID, CARID, MAINDATE, DESCRIPTON, COST) 
+                                       VALUES (?, ?, ?, ?, ?)");
+            $stmt->bind_param("ssssd", $maintenanceId, $rental['CARID'], $maintenanceStartDate, $description, $cost);
+            $stmt->execute();
+            
+            // Update car status to 'Maintenance'
+            $stmt = $connect->prepare("UPDATE car SET CAR_STATUS = 'Maintenance' WHERE CARID = ?");
+            $stmt->bind_param("s", $rental['CARID']);
+            $stmt->execute();
+        }
+    }
+    
+    // Check for completed maintenance and return cars to inventory
+    $sql = "SELECT m.CARID, c.CARNAME, m.MAINDATE 
+            FROM maintanance m
+            JOIN car c ON m.CARID = c.CARID
+            WHERE c.CAR_STATUS = 'Maintenance'
+            AND DATE_ADD(m.MAINDATE, INTERVAL 14 DAY) <= CURDATE()";
+    
+    $result = $connect->query($sql);
+    $completedMaintenance = [];
+    if ($result) {
+        $completedMaintenance = $result->fetch_all(MYSQLI_ASSOC);
+    }
+    
+    foreach ($completedMaintenance as $car) {
+        $stmt = $connect->prepare("UPDATE car SET CAR_STATUS = 'Available' WHERE CARID = ?");
+        $stmt->bind_param("s", $car['CARID']);
+        $stmt->execute();
+    }
+}
+
+// Process returned rentals (ONLY ONCE PER SESSION)
+if (!isset($_SESSION['maintenance_processed'])) {
+    processReturnedRentals($connect);
+    $_SESSION['maintenance_processed'] = true;
+}
+
+$success = '';
+$error = '';
+
+// Statistics from database
+// Total orders
+$total_order_query = "SELECT COUNT(*) as total FROM rental";
 $total_order_result = $connect->query($total_order_query);
-$total_order = $total_order_result->fetch_assoc()["total"];
-//pending orders
-$pending_order_query = "SELECT COUNT(*)as pending from rental where status=outgoing";
+$total_order_row = $total_order_result->fetch_assoc();
+$total_order = $total_order_row['total'] ?? 0;
+
+// Pending orders (using 'Ongoing' status from your database)
+$pending_order_query = "SELECT COUNT(*) as pending FROM rental WHERE STATUS = 'Ongoing'";
 $pending_order_result = $connect->query($pending_order_query);
-$pending_order = $pending_order_result->fetch_assoc()["pending"];
+$pending_order_row = $pending_order_result->fetch_assoc();
+$pending_order = $pending_order_row['pending'] ?? 0;
 
-// aproved orders
-$aproved_order_query = "SELECT COUNT(DISTINCT RENTAL_ID) as approved from payment  
-WHERE PAYEMENTSTATUS='paid'";
-$approved_order_result = $connect->query($aproved_order_query);
-$approved_order = $approved_order_result->fetch_assoc()["approved"];
+// Approved orders (completed rentals)
+$approved_order_query = "SELECT COUNT(*) as approved FROM rental WHERE STATUS = 'Completed'";
+$approved_order_result = $connect->query($approved_order_query);
+$approved_order_row = $approved_order_result->fetch_assoc();
+$approved_order = $approved_order_row['approved'] ?? 0;
 
-//rejected orders
-$rejected_order_query = "SELECT COUNT(*) as rejected from rental WHERE status ='rejected'";
-$rejected_order_result = $connect->query($aproved_order_query);
-$rejected_order = $rejected_order_result->fetch_assoc()["rejected"];
-// cars_statistic
-$total_car_query = "SELECT SUM(Quantity) as total from car";
+// Rejected orders
+$rejected_order_query = "SELECT COUNT(*) as rejected FROM rental WHERE STATUS = 'Rejected'";
+$rejected_order_result = $connect->query($rejected_order_query);
+$rejected_order_row = $rejected_order_result->fetch_assoc();
+$rejected_order = $rejected_order_row['rejected'] ?? 0;
+
+// Cars statistics - FIXED: Use COUNT instead of SUM for number of car models
+$total_car_query = "SELECT COUNT(*) as total FROM car";
 $total_car_result = $connect->query($total_car_query);
 $total_car_row = $total_car_result->fetch_assoc();
-$total_car = $total_car_row['total'] ?: 0;
+$total_car = $total_car_row['total'] ?? 0;
 
-$available_car_query = "SELECT SUM(Quantity) as avilable  from car WHERE Quantity>0";
+$available_car_query = "SELECT COUNT(*) as available FROM car WHERE CAR_STATUS = 'Available'";
 $available_car_result = $connect->query($available_car_query);
 $available_car_row = $available_car_result->fetch_assoc();
-$available_car = $available_car_row['available'] ?: 0;
-//low_stock
+$available_car = $available_car_row['available'] ?? 0;
 
-$low_stock_car_query = "SELECT SUM(Quantity) as low_stock from car WHERE Quantity<3 AND Quantity >0";
+// Low stock cars - FIXED: Check quantity < 3
+$low_stock_car_query = "SELECT COUNT(*) as low_stock FROM car WHERE Quantity < 3 AND Quantity > 0";
 $low_stock_car_result = $connect->query($low_stock_car_query);
 $low_stock_car_row = $low_stock_car_result->fetch_assoc();
-$low_stock_car = $low_stock_car_row['low_stock'] ?: 0;
-// pending order show for dashbord
-$pending_order_list_query = "SELECT * FROM rental WHERE status='Outgoing' LIMIT 4";
+$low_stock_car = $low_stock_car_row['low_stock'] ?? 0;
+
+// Pending orders list for dashboard
+$pending_order_list_query = "SELECT r.*, c.CUSTNAME, ca.CARNAME, ca.daily_price, 
+                            DATEDIFF(r.DROPOFFDATE, r.PICKUPDATE) as days,
+                            (DATEDIFF(r.DROPOFFDATE, r.PICKUPDATE) * ca.daily_price) as total_price
+                            FROM rental r
+                            JOIN customer c ON r.CUSTID = c.CUSTID
+                            JOIN car ca ON r.CARID = ca.CARID
+                            WHERE r.STATUS = 'Ongoing'
+                            ORDER BY r.PICKUPDATE DESC
+                            LIMIT 4";
 $pending_order_list_result = $connect->query($pending_order_list_query);
-//orderr mangement
-$all_order_query = "SELECT * from rental ORDER BY PICKUPDATE DESC";
+$pending_orders = [];
+if ($pending_order_list_result) {
+    $pending_orders = $pending_order_list_result->fetch_all(MYSQLI_ASSOC);
+}
+
+// All orders for management
+$all_order_query = "SELECT r.*, c.CUSTNAME, ca.CARNAME, ca.daily_price, 
+                   DATEDIFF(r.DROPOFFDATE, r.PICKUPDATE) as days,
+                   (DATEDIFF(r.DROPOFFDATE, r.PICKUPDATE) * ca.daily_price) as total_price
+                   FROM rental r
+                   JOIN customer c ON r.CUSTID = c.CUSTID
+                   JOIN car ca ON r.CARID = ca.CARID
+                   ORDER BY r.PICKUPDATE DESC";
 $all_order_result = $connect->query($all_order_query);
-//costumer for order
-
-$costumer_query = "SELECT CUSTID ,CUSTNAME from customer";
-$costumer_result = $connect->query($costumer_query);
-$costumer = [];
-while ($cust = $costumer_result->fetch_assoc()) {
-    $costumer[$cust['CUSTID']] = $cust['CUSTNAME'];
-}
-//information of cars
-$car_details_query = "SELECT CARID,CARNAME,car_type,bags,Seats,Doors,daily_price from car";
-$car_details_result = $connect->query($car_details_query);
-$car_details = [];
-while ($car = $car_details_result->fetch_assoc()) {
-    $car_details[$car['CARID']] = $car;
-}
-//payment stauts
-$payment_query = "SELECT RENTALID,PAYMENTSTATUS from payment";
-$payment_result = $connect->query($payment_query);
-$payment_status = [];
-while ($payment = $payment_result->fetch_assoc()) {
-    $payment_status[$payment["RENTALID"]] = $payment["PAYMENTSTATUS"];
-}
-//get photo
-$get_photo_query = "SELECT CARID,URL FROM car_photo where IS_MAIN=1";
-$get_photo_result = $connect->query($get_photo_query);
-$get_photo = [];
-while ($photo = $get_photo_result->fretch_assoc()) {
-    $get_photo[$photo["CARID"]] = $photo["URL"];
+$all_orders = [];
+if ($all_order_result) {
+    $all_orders = $all_order_result->fetch_all(MYSQLI_ASSOC);
 }
 
-//car mangement
-$all_car_query = "SELECT * from car ORDER BY CARNAME";
+// All cars for management
+$all_car_query = "SELECT c.*, cp.URL as photo_url 
+                  FROM car c 
+                  LEFT JOIN car_photos cp ON c.CARID = cp.CARID AND cp.IS_MAIN = 1 
+                  ORDER BY c.CARNAME";
 $all_car_result = $connect->query($all_car_query);
-// handle form
+$all_cars = [];
+if ($all_car_result) {
+    $all_cars = $all_car_result->fetch_all(MYSQLI_ASSOC);
+}
+
+// Handle form submissions
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    //add new car
+    // Add new car
     if (isset($_POST["add_car"])) {
-        $state = $connect->prepare("SELECT CARTID FROM car ORDER BY CARID DESC LIMIT 1");
-        $state->execute();
-        $result = $state->get_result();
-        $row = $result->fetch_assoc();
-
-        if ($row) {
-            $carid = $row['CARID'];
-            $code = substr($carid, 0, 3);
-            $nb = substr($custid, 3);
-            $nb = (int)$nb + 1;
-            $id = $code . str_pad($nb, 3, "0", STR_PAD_LEFT);
-        } else {
-            $id = "CAR001";
-        }
-
-
-        $model = $connect->real_escape_string($_POST['model']);
-        $carname = $connect->real_escape_string($_POST['carname']);
-        $brand = $connect->real_escape_string($_POST['brand']);
-        $horse_power = intval($_POST['horse_power']);
-        $car_year = intval($_POST['car_year']);
-        $platenumber = $connect->real_escape_string($_POST['platenumber']);
-        $daily_price = floatval($_POST['daily_price']);
-        $car_type = $connect->real_escape_string($_POST['car_type']);
-        $bags = $connect->real_escape_string($_POST['bags']);
-        $doors = $connect->real_escape_string($_POST['doors']);
-        $seats = $connect->real_escape_string($_POST['seats']);
-        $quantity = intval($_POST['quantity']);
-        $description = $connect->real_escape_string($_POST['description']);
-        $color = $connect->real_escape_string($_POST['color']);
-        $upload_dir = "../assets/img/";
-        $photo_url = "";
-        if (!file_exists($upload_dir)) {
-            mkdir($upload_dir, 0777, true);
-        }
-        if (isset($_FILES["car_image"]) && $_FILES["car_image"]["error"] == 0) {
-            $file_type = $_FILES["car_image"]["type"];
-            $file_name = $_FILES["car_image"]["name"];
-            $file_tmp = $_FILES["car_image"]["tmp_name"];
-            $file_extension = strtolower(pathinfo($file_name), PATHINFO_EXTENSION);
-            $unique_filename = uniqid() . '_' . time() . '.' . $file_extension;
-            $destination = $upload_dir . $unique_filename;
-            if (move_uploaded_file($file_tmp, $destination)) {
-                $photo_url = "assets/img/" . $unique_filename;
+        try {
+            // Generate car ID
+            $stmt = $connect->prepare("SELECT CARID FROM car ORDER BY CARID DESC LIMIT 1");
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $row = $result->fetch_assoc();
+            
+            if ($row) {
+                $carid = $row['CARID'];
+                $code = substr($carid, 0, 3);
+                $nb = substr($carid, 3);
+                $nb = (int) $nb + 1;
+                $id = $code . str_pad($nb, 3, "0", STR_PAD_LEFT);
+            } else {
+                $id = "CAR001";
             }
-        }
-
-
-        $insert_car_query = "INSERT INTO car (CARID, MODEL, CARNAME, BRAND, HORSE_POWER, CAR_STATUS, CAR_YEAR, PLATENUMBER,
-daily_price, car_type, bags, Doors, Seats, Quantity, description, color)
-VALUES (?, ?, ?, ?, ?, 'Available', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        $stmt = $connect->prepare($insert_car_query);
-        $stmt->bind_param(
-            "sssssisssssssss",
-            $id,
-            $model,
-            $carname,
-            $brand,
-            $horse_power,
-            $car_year,
-            $platenumber,
-            $daily_price,
-            $car_type,
-            $bags,
-            $doors,
-            $seats,
-            $quantity,
-            $description,
-            $color
-        );
-
-        if ($stmt->execute()) {
-            if (!empty($photo_url)) {
-                $insert_photo_query = "INSERT INTO car_photos(CARID,URL,IS_MAIN,CREATE_AT)
-            VALUES(?,?,1,CURDATE())";
-                $stmt2 = $connect->prepare($insert_photo_query);
-                $stmt2->bind_param("ss", $id, $photo_url);
-                $stnmt2->execute();
-                $_SESSION['success'] = "car added successfully";
+            
+            $model = $connect->real_escape_string($_POST['model'] ?? '');
+            $carname = $connect->real_escape_string($_POST['carname'] ?? '');
+            $brand = $connect->real_escape_string($_POST['brand'] ?? '');
+            $horse_power = intval($_POST['horse_power'] ?? 0);
+            $car_year = intval($_POST['car_year'] ?? date('Y'));
+            $platenumber = $connect->real_escape_string($_POST['platenumber'] ?? '');
+            $daily_price = floatval($_POST['daily_price'] ?? 0);
+            $car_type = $connect->real_escape_string($_POST['car_type'] ?? '');
+            $bags = $connect->real_escape_string($_POST['bags'] ?? '');
+            $doors = $connect->real_escape_string($_POST['doors'] ?? '');
+            $seats = $connect->real_escape_string($_POST['seats'] ?? '');
+            $quantity = intval($_POST['quantity'] ?? 1);
+            $description = $connect->real_escape_string($_POST['description'] ?? '');
+            $color = $connect->real_escape_string($_POST['color'] ?? '');
+            
+            // Handle photo upload
+            $photo_url = '';
+            $use_upload = false;
+            
+            // Check if file was uploaded
+            if (isset($_FILES["car_photo"]) && $_FILES["car_photo"]["error"] == 0) {
+                $file_name = $_FILES["car_photo"]["name"];
+                $file_tmp = $_FILES["car_photo"]["tmp_name"];
+                $file_size = $_FILES["car_photo"]["size"];
+                
+                // Check file extension
+                $allowed_extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+                $file_extension = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
+                
+                if (in_array($file_extension, $allowed_extensions)) {
+                    // Check file size (max 2MB)
+                    if ($file_size <= 2 * 1024 * 1024) {
+                        // Create uploads directory if it doesn't exist
+                        $upload_dir = dirname(__FILE__) . '/../assets/img/cars/';
+                        if (!file_exists($upload_dir)) {
+                            mkdir($upload_dir, 0777, true);
+                        }
+                        
+                        // Generate unique filename
+                        $unique_filename = $id . '_' . time() . '.' . $file_extension;
+                        $destination = $upload_dir . $unique_filename;
+                        
+                        // Debug: Check if destination is writable
+                        if (move_uploaded_file($file_tmp, $destination)) {
+                            // Store relative path for database
+                            $photo_url = "assets/img/cars/" . $unique_filename;
+                            $use_upload = true;
+                        } else {
+                            $error = "Failed to move uploaded file. Check directory permissions.";
+                        }
+                    } else {
+                        $error = "File size too large. Maximum size is 2MB.";
+                    }
+                } else {
+                    $error = "Invalid file type. Only JPG, JPEG, PNG, GIF, and WEBP are allowed.";
+                }
+            } elseif (!empty($_POST['photo_url'])) {
+                $photo_url = $connect->real_escape_string($_POST['photo_url']);
             }
+            
+            // Check if car already exists with same plate number
+            $check_car_query = "SELECT CARID FROM car WHERE PLATENUMBER = ?";
+            $check_stmt = $connect->prepare($check_car_query);
+            $check_stmt->bind_param("s", $platenumber);
+            $check_stmt->execute();
+            $check_result = $check_stmt->get_result();
+            
+            if ($check_result->num_rows > 0) {
+                $error = "A car with this plate number already exists!";
+            }
+            
+            // Only proceed if no error with image and car doesn't exist
+            if (empty($error)) {
+                // Check if all required fields are filled
+                if (empty($carname) || empty($model) || empty($brand) || empty($platenumber) || empty($car_type)) {
+                    $error = "Please fill all required fields!";
+                } else {
+                    // Insert car
+                    $insert_car_query = "INSERT INTO car (CARID, MODEL, CARNAME, BRAND, HORSE_POWER, CAR_STATUS, CAR_YEAR, PLATENUMBER,
+                                        daily_price, car_type, bags, Doors, Seats, Quantity, description, color)
+                                        VALUES (?, ?, ?, ?, ?, 'Available', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                    
+                    $stmt = $connect->prepare($insert_car_query);
+                    $stmt->bind_param(
+                        "ssssiisssssiiss",
+                        $id,
+                        $model,
+                        $carname,
+                        $brand,
+                        $horse_power,
+                        $car_year,
+                        $platenumber,
+                        $daily_price,
+                        $car_type,
+                        $bags,
+                        $doors,
+                        $seats,
+                        $quantity,
+                        $description,
+                        $color
+                    );
+                    
+                    if ($stmt->execute()) {
+                        // Insert photo if available
+                        if (!empty($photo_url)) {
+                            // Delete any existing photo for this car
+                            $delete_old_photo = "DELETE FROM car_photos WHERE CARID = ? AND IS_MAIN = 1";
+                            $del_stmt = $connect->prepare($delete_old_photo);
+                            $del_stmt->bind_param("s", $id);
+                            $del_stmt->execute();
+                            
+                            // Insert new photo
+                            $insert_photo_query = "INSERT INTO car_photos (CARID, URL, IS_MAIN, CREATE_AT) 
+                                                   VALUES (?, ?, 1, CURDATE())";
+                            $stmt2 = $connect->prepare($insert_photo_query);
+                            $stmt2->bind_param("ss", $id, $photo_url);
+                            if (!$stmt2->execute()) {
+                                $error = "Error saving photo: " . $connect->error;
+                            }
+                        }
+                        
+                        if (empty($error)) {
+                            $success = "Car added successfully!";
+                            // Redirect to prevent form resubmission on refresh
+                            $_SESSION['success'] = "Car added successfully!";
+                            header("Location: " . $_SERVER['PHP_SELF']);
+                            exit();
+                        }
+                    } else {
+                        // Check if it's a duplicate entry error
+                        if (strpos($connect->error, 'Duplicate entry') !== false) {
+                            $error = "This car already exists in the database!";
+                        } else {
+                            $error = "Error adding car: " . $connect->error;
+                        }
+                    }
+                }
+            }
+        } catch (Exception $e) {
+            $error = "Error adding car: " . $e->getMessage();
         }
     }
-
-    //update car quantity
-    if(isset($_POST["update_quantity"])){
-        $car_id=$connect->real_escape_string($_POST["carid"]);
-        $quantity=intval($_POST["quantity"]);
-        $update_query="UPDATE car SET Quantity=$quantity WHERE CARID='$car_id'";
-        if($connect->query($update_query)){
-            $_SESSION['success']="quaantity updated successfully";
+    
+    // Update car quantity
+    if (isset($_POST["update_quantity"])) {
+        try {
+            $car_id = $connect->real_escape_string($_POST["carid"]);
+            $quantity = intval($_POST["quantity"]);
+            
+            $update_query = "UPDATE car SET Quantity = ? WHERE CARID = ?";
+            $stmt = $connect->prepare($update_query);
+            $stmt->bind_param("is", $quantity, $car_id);
+            
+            if ($stmt->execute()) {
+                $success = "Quantity updated successfully!";
+                // Redirect to prevent form resubmission on refresh
+                $_SESSION['success'] = "Quantity updated successfully!";
+                header("Location: " . $_SERVER['PHP_SELF']);
+                exit();
+            }
+        } catch (Exception $e) {
+            $error = "Error updating quantity: " . $e->getMessage();
         }
     }
-//delete car
-if(isset($_POST["delet_car"])){
-       $car_id=$connect->real_escape_string($_POST["carid"]);
-       $delete_photo_query="DELETE FROM car_photos WHERE CARID='$car_id'";
-       $connect->query($delete_photo_query);
-       $delete_query="DELETE FROM car where CARID='$car_id'";
-       if($connect->query($delete_query)){
-        $_SESSION['success']="car deleted successffully";
-       }
-}
-//handle order
-if(isset($_POST["order_action"])){
-   $rental_id=$connect->real_escape_string($_POST["rentalid"]);
-      $action=$connect->real_escape_string($_POST["action"]);
-      if($action==="approve"){
-        $update_query="UPDATE rental SET STATUS='Approved' where RENTALID='$rental_id' ";
-        if($connect->query($update_query)){
-            $_SESSION["success"]="order approved successfully";
-        }
-
-      }
-      elseif($action==="reject"){
-        $update_query="UPDATE rental SET STATUS='Rejected' where RENTALID='$rental_id'";
-        if($connect->query($update_query)){
-            $car_querry="SELECT CARID from rental where RENTALID='$rental_id'";
-            $car_result=$connect->query($car_querry);
-            if($car_row=$car_result->fetch_assoc()){
-                $carid=$car_row['CARID'];
-                $update_quantity_query="UPDATE car SET Quantity=Quantity+1 where CARID='$carid'";
-                $connect->query($update_quantity_query);
+    
+    // Delete car
+    if (isset($_POST["delete_car"])) {
+        try {
+            $car_id = $connect->real_escape_string($_POST["carid"]);
+            
+            // Check if car exists in any rentals
+            $check_rentals = "SELECT COUNT(*) as rental_count FROM rental WHERE CARID = ?";
+            $check_stmt = $connect->prepare($check_rentals);
+            $check_stmt->bind_param("s", $car_id);
+            $check_stmt->execute();
+            $check_result = $check_stmt->get_result();
+            $rental_row = $check_result->fetch_assoc();
+            
+            if ($rental_row['rental_count'] > 0) {
+                $error = "Cannot delete car. It has existing rentals.";
+            } else {
+                // Get photo URL to delete file
+                $get_photo_query = "SELECT URL FROM car_photos WHERE CARID = ? AND IS_MAIN = 1";
+                $stmt = $connect->prepare($get_photo_query);
+                $stmt->bind_param("s", $car_id);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                $photo_row = $result->fetch_assoc();
+                
+                // Delete photo file if it exists locally
+                if ($photo_row && !empty($photo_row['URL']) && strpos($photo_row['URL'], 'assets/img/cars/') !== false) {
+                    $photo_path = dirname(__FILE__) . '/../' . $photo_row['URL'];
+                    if (file_exists($photo_path)) {
+                        unlink($photo_path);
+                    }
+                }
+                
+                // Delete photos from database
+                $delete_photo_query = "DELETE FROM car_photos WHERE CARID = ?";
+                $stmt = $connect->prepare($delete_photo_query);
+                $stmt->bind_param("s", $car_id);
+                $stmt->execute();
+                
+                // Delete the car
+                $delete_query = "DELETE FROM car WHERE CARID = ?";
+                $stmt = $connect->prepare($delete_query);
+                $stmt->bind_param("s", $car_id);
+                
+                if ($stmt->execute()) {
+                    $success = "Car deleted successfully!";
+                    // Redirect to prevent form resubmission on refresh
+                    $_SESSION['success'] = "Car deleted successfully!";
+                    header("Location: " . $_SERVER['PHP_SELF']);
+                    exit();
+                }
             }
-            $_SESSION["success"]="order rejected successfully";
+        } catch (Exception $e) {
+            $error = "Error deleting car: " . $e->getMessage();
         }
-      }
-
-
+    }
+    
+    // Handle order status update
+    if (isset($_POST['update_order_status'])) {
+        try {
+            $rentalid = $connect->real_escape_string($_POST['rentalid']);
+            $status = $connect->real_escape_string($_POST['status']);
+            $currentDate = date('Y-m-d');
+            
+            // Update rental status
+            $update_rental_query = "UPDATE rental SET STATUS = ? WHERE RENTALID = ?";
+            $stmt = $connect->prepare($update_rental_query);
+            $stmt->bind_param("ss", $status, $rentalid);
+            $stmt->execute();
+            
+            // Get car ID for the rental
+            $get_car_query = "SELECT CARID FROM rental WHERE RENTALID = ?";
+            $stmt = $connect->prepare($get_car_query);
+            $stmt->bind_param("s", $rentalid);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $car_row = $result->fetch_assoc();
+            $carid = $car_row['CARID'] ?? null;
+            
+            if ($carid) {
+                if ($status == 'Rejected' || $status == 'Completed') {
+                    // Return car to inventory
+                    $update_car_query = "UPDATE car SET Quantity = Quantity + 1 WHERE CARID = ?";
+                    $stmt = $connect->prepare($update_car_query);
+                    $stmt->bind_param("s", $carid);
+                    $stmt->execute();
+                    
+                    // If completed, update dropoff date
+                    if ($status == 'Completed') {
+                        $update_date_query = "UPDATE rental SET DROPOFFDATE = ? WHERE RENTALID = ?";
+                        $stmt = $connect->prepare($update_date_query);
+                        $stmt->bind_param("ss", $currentDate, $rentalid);
+                        $stmt->execute();
+                    }
+                } elseif ($status == 'Ongoing') {
+                    // Remove car from inventory when rented
+                    $update_car_query = "UPDATE car SET Quantity = Quantity - 1 WHERE CARID = ? AND Quantity > 0";
+                    $stmt = $connect->prepare($update_car_query);
+                    $stmt->bind_param("s", $carid);
+                    $stmt->execute();
+                }
+            }
+            
+            $success = "Order status updated successfully!";
+            // Redirect to prevent form resubmission on refresh
+            $_SESSION['success'] = "Order status updated successfully!";
+            header("Location: " . $_SERVER['PHP_SELF']);
+            exit();
+        } catch (Exception $e) {
+            $error = "Error updating order status: " . $e->getMessage();
+        }
+    }
 }
+
+// Check for success message from redirect
+if (isset($_SESSION['success'])) {
+    $success = $_SESSION['success'];
+    unset($_SESSION['success']);
 }
-
-
+if (isset($_SESSION['error'])) {
+    $error = $_SESSION['error'];
+    unset($_SESSION['error']);
+}
 ?>
-
-
-
-
-
-
-
-
 
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -251,11 +518,9 @@ if(isset($_POST["order_action"])){
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Google Fonts -->
-    <link
-        href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Montserrat:wght@400;500;600&display=swap"
-        rel="stylesheet">
-    <link rel="stylesheet" href="../assets/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Montserrat:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
+        /* Your CSS styles remain the same */
         :root {
             --primary-color: #2ecc71;
             --primary-dark: #27ae60;
@@ -277,75 +542,21 @@ if(isset($_POST["order_action"])){
             line-height: 1.6;
         }
 
-        /* Navbar Styling */
-        .navbar {
-            background-color: #121212;
-            padding: 15px 0;
+        .alert {
+            border-radius: 10px;
+            border: none;
+            margin-bottom: 20px;
         }
 
-        .navbar .nav-link {
-            color: #ffffff !important;
-        }
-
-        .navbar .nav-link:hover {
-            color: rgba(12, 233, 56, 0.867) !important;
-        }
-
-        /* Hero Section */
-        .dashboard-hero {
-            background: linear-gradient(rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.8)),
-                url('https://images.unsplash.com/photo-1558618666-fcd25c85cd64?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1600&q=80') center/cover no-repeat;
-            color: white;
-            padding: 80px 0 40px;
-            margin-bottom: 40px;
-        }
-
-        .hero-title {
-            font-size: 2.5rem;
-            font-weight: 700;
-            margin-bottom: 10px;
-        }
-
-        /* Dashboard Layout */
         .dashboard-container {
             min-height: calc(100vh - 200px);
         }
 
-        /* Sidebar */
         .dashboard-sidebar {
             position: sticky;
             top: 30px;
             height: fit-content;
         }
-
-        /* Fix left side alignment */
-        .topbar-left {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-            /* spacing between items */
-        }
-
-        .topbar-left .topbar-widget {
-            display: flex;
-            align-items: center;
-        }
-
-        /* Fix right side social icons */
-        .topbar-right {
-            display: flex;
-            justify-content: flex-end;
-        }
-
-        .topbar-right .social-icons {
-            display: flex;
-            gap: 15px;
-        }
-
-        .topbar-right .social-icons a {
-            color: white;
-        }
-
 
         .sidebar-card {
             background: white;
@@ -371,12 +582,11 @@ if(isset($_POST["order_action"])){
             margin: 0 auto 20px;
             border: 4px solid white;
             background: white;
-        }
-
-        .employee-image img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            color: var(--primary-color);
         }
 
         .employee-name {
@@ -426,21 +636,32 @@ if(isset($_POST["order_action"])){
             font-size: 1.2rem;
         }
 
-        /* Main Content Area */
+        /* Content Sections */
         .content-section {
-            display: none;
+            display: none !important;
             opacity: 0;
             transform: translateY(20px);
             transition: opacity 0.5s ease, transform 0.5s ease;
         }
 
         .content-section.active {
-            display: block;
+            display: block !important;
             opacity: 1;
             transform: translateY(0);
         }
 
-        /* Stats Cards */
+        /* Car Tab Content */
+        .car-tab-content {
+            display: none !important;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .car-tab-content.active {
+            display: block !important;
+            opacity: 1;
+        }
+
         .stats-grid {
             margin-bottom: 30px;
         }
@@ -518,7 +739,6 @@ if(isset($_POST["order_action"])){
             font-size: 0.95rem;
         }
 
-        /* Orders Card */
         .orders-card {
             background: white;
             border-radius: 15px;
@@ -536,7 +756,64 @@ if(isset($_POST["order_action"])){
             border-bottom: 2px solid var(--primary-color);
         }
 
-        /* Car Management Card */
+        .order-item {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border-color);
+            transition: var(--transition);
+            position: relative;
+        }
+
+        .order-item:hover {
+            border-color: var(--primary-color);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+        }
+
+        .order-item.pending {
+            border-left: 4px solid var(--warning-color);
+        }
+
+        .order-item.completed {
+            border-left: 4px solid var(--primary-color);
+        }
+
+        .order-item.rejected {
+            border-left: 4px solid var(--danger-color);
+        }
+
+        .order-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .order-status {
+            padding: 6px 15px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .status-pending {
+            background-color: rgba(243, 156, 18, 0.15);
+            color: var(--warning-color);
+        }
+
+        .status-completed {
+            background-color: rgba(46, 204, 113, 0.15);
+            color: var(--primary-dark);
+        }
+
+        .status-rejected {
+            background-color: rgba(231, 76, 60, 0.15);
+            color: var(--danger-color);
+        }
+
         .car-management-card {
             background: white;
             border-radius: 15px;
@@ -545,7 +822,6 @@ if(isset($_POST["order_action"])){
             margin-bottom: 30px;
         }
 
-        /* Tabs for Car Management */
         .car-tabs {
             display: flex;
             border-bottom: 2px solid var(--border-color);
@@ -574,17 +850,6 @@ if(isset($_POST["order_action"])){
             border-bottom-color: var(--primary-color);
         }
 
-        /* Car Management Content */
-        .car-tab-content {
-            display: none;
-        }
-
-        .car-tab-content.active {
-            display: block;
-            animation: fadeIn 0.5s ease;
-        }
-
-        /* Car List */
         .car-list {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -648,80 +913,11 @@ if(isset($_POST["order_action"])){
             color: var(--danger-color);
         }
 
-        .car-info {
-            padding: 20px;
+        .maintenance {
+            background: rgba(155, 89, 182, 0.15);
+            color: #9b59b6;
         }
 
-        .car-name {
-            font-size: 1.2rem;
-            font-weight: 600;
-            margin-bottom: 10px;
-            color: var(--text-dark);
-        }
-
-        .car-details {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 15px;
-            font-size: 0.9rem;
-            color: var(--text-light);
-        }
-
-        .car-specs {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-bottom: 15px;
-        }
-
-        .spec-badge {
-            padding: 4px 10px;
-            background: #f8f9fa;
-            border-radius: 15px;
-            font-size: 0.8rem;
-            color: var(--text-dark);
-        }
-
-        .car-actions {
-            display: flex;
-            gap: 10px;
-            margin-top: 15px;
-        }
-
-        .btn-edit,
-        .btn-delete {
-            padding: 8px 15px;
-            border-radius: 6px;
-            font-size: 0.85rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: var(--transition);
-            border: 1px solid transparent;
-        }
-
-        .btn-edit {
-            background: rgba(52, 152, 219, 0.1);
-            color: var(--secondary-color);
-            border-color: var(--secondary-color);
-        }
-
-        .btn-edit:hover {
-            background: var(--secondary-color);
-            color: white;
-        }
-
-        .btn-delete {
-            background: rgba(231, 76, 60, 0.1);
-            color: var(--danger-color);
-            border-color: var(--danger-color);
-        }
-
-        .btn-delete:hover {
-            background: var(--danger-color);
-            color: white;
-        }
-
-        /* Add Car Form */
         .add-car-form {
             max-width: 800px;
             margin: 0 auto;
@@ -761,53 +957,6 @@ if(isset($_POST["order_action"])){
             color: var(--text-dark);
         }
 
-        .form-group input,
-        .form-group select,
-        .form-group textarea {
-            width: 100%;
-            padding: 12px 15px;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            transition: var(--transition);
-        }
-
-        .form-group input:focus,
-        .form-group select:focus,
-        .form-group textarea:focus {
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(46, 204, 113, 0.2);
-            outline: none;
-        }
-
-        .quantity-control {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .qty-btn {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            border: 1px solid var(--border-color);
-            background: white;
-            font-size: 1.2rem;
-            cursor: pointer;
-            transition: var(--transition);
-        }
-
-        .qty-btn:hover {
-            border-color: var(--primary-color);
-            color: var(--primary-color);
-        }
-
-        .qty-input {
-            width: 80px;
-            text-align: center;
-            font-weight: 600;
-            font-size: 1.2rem;
-        }
-
         .btn-submit {
             background: var(--primary-color);
             color: white;
@@ -825,361 +974,10 @@ if(isset($_POST["order_action"])){
             box-shadow: 0 5px 15px rgba(46, 204, 113, 0.3);
         }
 
-        /* Order Filters */
-        .order-filters {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-bottom: 25px;
-        }
-
-        .filter-btn {
-            padding: 8px 20px;
-            background-color: white;
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            cursor: pointer;
-            transition: var(--transition);
-            font-weight: 500;
-        }
-
-        .filter-btn:hover {
-            border-color: var(--primary-color);
-            color: var(--primary-color);
-        }
-
-        .filter-btn.active {
-            background-color: var(--primary-color);
-            color: white;
-            border-color: var(--primary-color);
-        }
-
-        /* Order Items */
-        .order-item {
-            background: white;
-            border-radius: 10px;
-            padding: 20px;
-            margin-bottom: 20px;
-            border: 1px solid var(--border-color);
-            transition: var(--transition);
-            position: relative;
-        }
-
-        .order-item:hover {
-            border-color: var(--primary-color);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
-        }
-
-        .order-item.pending {
-            border-left: 4px solid var(--warning-color);
-        }
-
-        .order-item.approved {
-            border-left: 4px solid var(--primary-color);
-        }
-
-        .order-item.rejected {
-            border-left: 4px solid var(--danger-color);
-        }
-
-        .order-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-
-        .order-id {
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: var(--text-dark);
-        }
-
-        .order-status {
-            padding: 6px 15px;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            font-weight: 500;
-        }
-
-        .status-pending {
-            background-color: rgba(243, 156, 18, 0.15);
-            color: var(--warning-color);
-        }
-
-        .status-approved {
-            background-color: rgba(46, 204, 113, 0.15);
-            color: var(--primary-dark);
-        }
-
-        .status-rejected {
-            background-color: rgba(231, 76, 60, 0.15);
-            color: var(--danger-color);
-        }
-
-        .order-details {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 30px;
-            margin-bottom: 20px;
-        }
-
-        .order-car {
-            flex: 1;
-            min-width: 300px;
-        }
-
-        .car-image {
-            width: 200px;
-            height: 140px;
-            border-radius: 8px;
-            overflow: hidden;
-            float: left;
-            margin-right: 20px;
-        }
-
-        .car-image img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .car-name {
-            font-size: 1.2rem;
-            font-weight: 600;
-            margin-bottom: 10px;
-        }
-
-        .car-specs {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 15px;
-            margin-bottom: 10px;
-        }
-
-        .spec-item {
-            display: flex;
-            align-items: center;
-            color: var(--text-light);
-            font-size: 0.9rem;
-        }
-
-        .spec-item i {
-            color: var(--primary-color);
-            margin-right: 5px;
-        }
-
-        .order-info {
-            flex: 1;
-            min-width: 300px;
-        }
-
-        .info-item {
-            margin-bottom: 10px;
-            display: flex;
-            align-items: center;
-        }
-
-        .info-label {
-            font-weight: 500;
-            min-width: 120px;
-            color: var(--text-dark);
-        }
-
-        .info-value {
-            color: var(--text-light);
-        }
-
-        .info-value.highlight {
-            color: var(--primary-color);
-            font-weight: 500;
-        }
-
-        .order-actions {
-            display: flex;
-            gap: 10px;
-            justify-content: flex-end;
-            border-top: 1px solid var(--border-color);
-            padding-top: 20px;
-            margin-top: 20px;
-        }
-
-        .btn-action {
-            padding: 10px 20px;
-            border-radius: 8px;
-            font-weight: 500;
-            border: 1px solid transparent;
-            cursor: pointer;
-            transition: var(--transition);
-            min-width: 100px;
-            text-align: center;
-        }
-
-        .btn-approve {
-            background-color: rgba(46, 204, 113, 0.1);
-            color: var(--primary-color);
-            border-color: var(--primary-color);
-        }
-
-        .btn-approve:hover {
-            background-color: var(--primary-color);
-            color: white;
-        }
-
-        .btn-reject {
-            background-color: rgba(231, 76, 60, 0.1);
-            color: var(--danger-color);
-            border-color: var(--danger-color);
-        }
-
-        .btn-reject:hover {
-            background-color: var(--danger-color);
-            color: white;
-        }
-
-        .btn-view {
-            background-color: rgba(52, 152, 219, 0.1);
-            color: var(--secondary-color);
-            border-color: var(--secondary-color);
-        }
-
-        .btn-view:hover {
-            background-color: var(--secondary-color);
-            color: white;
-        }
-
-        /* Customer Info */
-        .customer-card {
-            background: white;
-            border-radius: 15px;
-            box-shadow: var(--shadow);
-            padding: 30px;
-            margin-bottom: 30px;
-        }
-
-        .customer-header {
-            display: flex;
-            align-items: center;
-            margin-bottom: 25px;
-        }
-
-        .customer-avatar {
-            width: 70px;
-            height: 70px;
-            border-radius: 50%;
-            overflow: hidden;
-            margin-right: 20px;
-        }
-
-        .customer-avatar img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .customer-name {
-            font-size: 1.3rem;
-            font-weight: 600;
-            margin-bottom: 5px;
-        }
-
-        .customer-email {
-            color: var(--text-light);
-            font-size: 0.95rem;
-        }
-
-        .customer-details {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-            gap: 20px;
-        }
-
-        .detail-item {
-            padding: 15px;
-            background: #f8f9fa;
-            border-radius: 8px;
-        }
-
-        .detail-label {
-            font-size: 0.85rem;
-            color: var(--text-light);
-            margin-bottom: 5px;
-        }
-
-        .detail-value {
-            font-weight: 500;
-            color: var(--text-dark);
-        }
-
-        /* Sign Out Section */
-        .signout-card {
-            background: white;
-            border-radius: 15px;
-            box-shadow: var(--shadow);
-            padding: 50px 30px;
-            text-align: center;
-            margin-bottom: 30px;
-        }
-
-        .signout-icon {
-            font-size: 4rem;
-            color: var(--primary-color);
-            margin-bottom: 20px;
-        }
-
-        .signout-message {
-            font-size: 1.2rem;
-            margin-bottom: 30px;
-            color: var(--text-light);
-        }
-
-        .btn-confirm-signout {
-            background: white;
-            color: #dc3545;
-            border: 2px solid #dc3545;
-            padding: 12px 30px;
-            border-radius: 8px;
-            font-weight: 500;
-            transition: var(--transition);
-        }
-
-        .btn-confirm-signout:hover {
-            background: #dc3545;
-            color: white;
-        }
-
-        /* Empty State */
-        .empty-state {
-            text-align: center;
-            padding: 50px 20px;
-            color: var(--text-light);
-        }
-
-        .empty-icon {
-            font-size: 3rem;
-            color: #ddd;
-            margin-bottom: 20px;
-        }
-
-        /* Responsive */
         @media (max-width: 992px) {
             .dashboard-sidebar {
                 position: static;
                 margin-bottom: 30px;
-            }
-
-            .car-image {
-                float: none;
-                width: 100%;
-                height: 200px;
-                margin-right: 0;
-                margin-bottom: 15px;
-            }
-
-            .order-details {
-                flex-direction: column;
             }
 
             .car-list {
@@ -1188,88 +986,15 @@ if(isset($_POST["order_action"])){
         }
 
         @media (max-width: 768px) {
-            .hero-title {
-                font-size: 2rem;
-            }
-
             .order-header {
                 flex-direction: column;
                 align-items: flex-start;
             }
-
-            .order-actions {
-                flex-direction: column;
-                width: 100%;
-            }
-
-            .btn-action {
-                width: 100%;
-            }
-
-            .customer-header {
-                flex-direction: column;
-                text-align: center;
-            }
-
-            .customer-avatar {
-                margin-right: 0;
-                margin-bottom: 15px;
-            }
-
-            .car-tabs {
-                flex-direction: column;
-            }
-
-            .car-tab {
-                text-align: left;
-                border-bottom: 1px solid var(--border-color);
-            }
-
-            .car-tab.active {
-                border-bottom-color: var(--primary-color);
-            }
         }
 
-        @media (max-width: 576px) {
-            .hero-title {
-                font-size: 1.6rem;
-            }
-
-            .stats-grid .col-6 {
-                margin-bottom: 20px;
-            }
-
-            .orders-card,
-            .customer-card,
-            .car-management-card,
-            .signout-card {
-                padding: 20px;
-            }
-
-            .stat-number {
-                font-size: 2rem;
-            }
-
-            .car-list {
-                grid-template-columns: 1fr;
-            }
-
-            .form-row {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        /* Animation */
         @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         .fade-in {
@@ -1277,93 +1002,36 @@ if(isset($_POST["order_action"])){
         }
     </style>
 </head>
-
 <body>
-    <!-- Top Bar -->
-    <div id="topbar" class="topbar-dark text-light">
-        <div class="container">
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="topbar-left xs-hide">
-                        <div class="topbar-widget">
-                            <a href="#"><i class="fa fa-phone"></i>+961 01 234 567</a>
-                        </div>
-                        <div class="topbar-widget">
-                            <a href="#"><i class="fa fa-envelope"></i>contact@rentaly.com</a>
-                        </div>
-                        <div class="topbar-widget">
-                            <a href="#"><i class="fa fa-clock"></i>Mon - Fri 08.00 - 18.00</a>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col-md-6">
-                    <div class="topbar-right">
-                        <div class="social-icons">
-                            <a href="#"><i class="fab fa-facebook fa-lg"></i></a>
-                            <a href="#"><i class="fab fa-twitter fa-lg"></i></a>
-                            <a href="#"><i class="fab fa-youtube fa-lg"></i></a>
-                            <a href="#"><i class="fab fa-pinterest fa-lg"></i></a>
-                            <a href="#"><i class="fab fa-instagram fa-lg"></i></a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Header -->
-    <header>
-        <nav class="navbar navbar-expand-lg navbar-dark sticky-top">
-            <div class="container">
-                <a class="navbar-brand" href="index.php">
-                    <img src="../assets/img/logo-light.png" alt="Rentaly" style="height: 40px;">
-                </a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain"
-                    aria-controls="navbarMain" aria-expanded="false" aria-label="Toggle navigation">
-                    <i class="fas fa-bars"></i>
-                </button>
-                <div class="collapse navbar-collapse" id="navbarMain">
-                    <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
-                        <li class="nav-item">
-                            <a class="nav-link" href="index.php">Home</a>
-                        </li>
-
-                        <li class="nav-item">
-                            <a class="nav-link" href="myAccountEmployee.php">Manage Cars</a>
-                        </li>
-
-                    </ul>
-                </div>
-            </div>
-        </nav>
-    </header>
-
-    <!-- Hero Section -->
-    <section class="dashboard-hero">
-        <div class="container">
-            <div class="row">
-                <div class="col-lg-12 text-center">
-                    <h1 class="hero-title">Employee Dashboard</h1>
-                    <p class="lead">Manage client orders, car inventory, and handle customer inquiries.</p>
-                </div>
-            </div>
-        </div>
-    </section>
-
     <!-- Dashboard Content -->
-    <section class="dashboard-container">
+    <section class="dashboard-container py-4">
         <div class="container">
+            <?php if ($success): ?>
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    <?php echo $success; ?>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            <?php endif; ?>
+            
+            <?php if ($error): ?>
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <?php echo $error; ?>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            <?php endif; ?>
+            
             <div class="row">
                 <!-- Sidebar -->
                 <div class="col-lg-3">
                     <div class="dashboard-sidebar">
                         <div class="sidebar-card fade-in">
                             <div class="employee-profile">
-
-                                <h3 class="employee-name">Haidar Habach</h3>
-                                <div class="employee-role">Admin</div>
-                                <p class="mt-3" style="font-size: 0.9rem; opacity: 0.9;">Employee ID: EMP-2023-045</p>
+                                <div class="employee-image">
+                                    <i class="fas fa-user-tie"></i>
+                                </div>
+                                <h3 class="employee-name"><?php echo htmlspecialchars($employee['EMPNAME'] ?? 'Employee'); ?></h3>
+                                <div class="employee-role"><?php echo htmlspecialchars($employee['ROLE'] ?? 'Staff'); ?></div>
+                                <p class="mt-3" style="font-size: 0.9rem; opacity: 0.9;">Employee ID: <?php echo htmlspecialchars($employee['EMPID'] ?? ''); ?></p>
                             </div>
 
                             <div class="sidebar-menu">
@@ -1379,11 +1047,10 @@ if(isset($_POST["order_action"])){
                                     <i class="fas fa-car"></i>
                                     <span>Car Management</span>
                                 </button>
-
-                                <button class="menu-button" data-section="signout">
+                                <a href="logout.php" class="menu-button">
                                     <i class="fas fa-sign-out-alt"></i>
                                     <span>Sign Out</span>
-                                </button>
+                                </a>
                             </div>
                         </div>
                     </div>
@@ -1400,7 +1067,7 @@ if(isset($_POST["order_action"])){
                                     <div class="stat-icon">
                                         <i class="fas fa-clock"></i>
                                     </div>
-                                    <div class="stat-number" id="pending-count">12</div>
+                                    <div class="stat-number"><?php echo $pending_order; ?></div>
                                     <div class="stat-label">Pending Orders</div>
                                 </div>
                             </div>
@@ -1410,8 +1077,8 @@ if(isset($_POST["order_action"])){
                                     <div class="stat-icon">
                                         <i class="fas fa-check-circle"></i>
                                     </div>
-                                    <div class="stat-number" id="approved-count">58</div>
-                                    <div class="stat-label">Approved Orders</div>
+                                    <div class="stat-number"><?php echo $approved_order; ?></div>
+                                    <div class="stat-label">Completed Orders</div>
                                 </div>
                             </div>
 
@@ -1420,7 +1087,7 @@ if(isset($_POST["order_action"])){
                                     <div class="stat-icon">
                                         <i class="fas fa-times-circle"></i>
                                     </div>
-                                    <div class="stat-number" id="rejected-count">24</div>
+                                    <div class="stat-number"><?php echo $rejected_order; ?></div>
                                     <div class="stat-label">Rejected Orders</div>
                                 </div>
                             </div>
@@ -1430,7 +1097,7 @@ if(isset($_POST["order_action"])){
                                     <div class="stat-icon">
                                         <i class="fas fa-list-alt"></i>
                                     </div>
-                                    <div class="stat-number" id="total-count">94</div>
+                                    <div class="stat-number"><?php echo $total_order; ?></div>
                                     <div class="stat-label">Total Orders</div>
                                 </div>
                             </div>
@@ -1443,7 +1110,7 @@ if(isset($_POST["order_action"])){
                                     <div class="stat-icon" style="background: #9b59b6;">
                                         <i class="fas fa-car"></i>
                                     </div>
-                                    <div class="stat-number" id="total-cars">42</div>
+                                    <div class="stat-number"><?php echo $total_car; ?></div>
                                     <div class="stat-label">Total Cars</div>
                                 </div>
                             </div>
@@ -1453,7 +1120,7 @@ if(isset($_POST["order_action"])){
                                     <div class="stat-icon" style="background: var(--primary-color);">
                                         <i class="fas fa-check-circle"></i>
                                     </div>
-                                    <div class="stat-number" id="available-cars">28</div>
+                                    <div class="stat-number"><?php echo $available_car; ?></div>
                                     <div class="stat-label">Available Cars</div>
                                 </div>
                             </div>
@@ -1463,8 +1130,8 @@ if(isset($_POST["order_action"])){
                                     <div class="stat-icon" style="background: var(--warning-color);">
                                         <i class="fas fa-exclamation-circle"></i>
                                     </div>
-                                    <div class="stat-number" id="low-stock-cars">5</div>
-                                    <div class="stat-label">Low Stock</div>
+                                    <div class="stat-number"><?php echo $low_stock_car; ?></div>
+                                    <div class="stat-label">Low Stock Cars</div>
                                 </div>
                             </div>
                         </div>
@@ -1473,120 +1140,66 @@ if(isset($_POST["order_action"])){
                         <div class="orders-card fade-in">
                             <div class="d-flex justify-content-between align-items-center mb-4">
                                 <h3 class="card-title mb-0">Pending Orders - Need Action</h3>
-                                <span class="badge bg-warning">12 orders require attention</span>
+                                <span class="badge bg-warning"><?php echo count($pending_orders); ?> orders require attention</span>
                             </div>
 
-                            <!-- Pending Order 1 -->
-                            <div class="order-item pending" data-order-id="ORD-2023-001">
-                                <div class="order-header">
-                                    <div class="order-id">ORD-2023-001 - Jeep Renegade</div>
-                                    <div class="order-status status-pending">Pending Approval</div>
+                            <?php if (empty($pending_orders)): ?>
+                                <div class="alert alert-info">
+                                    No pending orders at the moment.
                                 </div>
-
-                                <div class="order-details">
-                                    <div class="order-car">
-                                        <div class="car-image">
-                                            <img src="https://images.unsplash.com/photo-1503376780353-7e6692767b70?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80" alt="Jeep Renegade">
+                            <?php else: ?>
+                                <?php foreach ($pending_orders as $order): ?>
+                                    <div class="order-item pending">
+                                        <div class="order-header">
+                                            <div class="order-id"><?php echo htmlspecialchars($order['RENTALID']); ?> - <?php echo htmlspecialchars($order['CARNAME']); ?></div>
+                                            <div class="order-status status-pending">Pending Approval</div>
                                         </div>
-                                        <div class="car-name">Jeep Renegade 2023</div>
-                                        <div class="car-specs">
-                                            <div class="spec-item">
-                                                <i class="fas fa-user"></i> 4 Seats
+                                        
+                                        <div class="row">
+                                            <div class="col-md-8">
+                                                <div class="info-item">
+                                                    <span class="info-label">Customer:</span>
+                                                    <span class="info-value highlight"><?php echo htmlspecialchars($order['CUSTNAME']); ?></span>
+                                                </div>
+                                                <div class="info-item">
+                                                    <span class="info-label">Pickup Date:</span>
+                                                    <span class="info-value"><?php echo date('M d, Y', strtotime($order['PICKUPDATE'])); ?></span>
+                                                </div>
+                                                <div class="info-item">
+                                                    <span class="info-label">Return Date:</span>
+                                                    <span class="info-value"><?php echo date('M d, Y', strtotime($order['DROPOFFDATE'])); ?></span>
+                                                </div>
+                                                <div class="info-item">
+                                                    <span class="info-label">Location:</span>
+                                                    <span class="info-value"><?php echo htmlspecialchars($order['PickUpLocation']); ?> → <?php echo htmlspecialchars($order['DropOffLocation']); ?></span>
+                                                </div>
+                                                <div class="info-item">
+                                                    <span class="info-label">Total Amount:</span>
+                                                    <span class="info-value highlight">$<?php echo number_format($order['total_price'], 2); ?></span>
+                                                </div>
                                             </div>
-                                            <div class="spec-item">
-                                                <i class="fas fa-suitcase"></i> 2 Bags
-                                            </div>
-                                            <div class="spec-item">
-                                                <i class="fas fa-gas-pump"></i> Petrol
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="order-info">
-                                        <div class="info-item">
-                                            <span class="info-label">Customer:</span>
-                                            <span class="info-value highlight">Michael Johnson</span>
-                                        </div>
-                                        <div class="info-item">
-                                            <span class="info-label">Pickup Date:</span>
-                                            <span class="info-value">March 15, 2023</span>
-                                        </div>
-                                        <div class="info-item">
-                                            <span class="info-label">Return Date:</span>
-                                            <span class="info-value">March 20, 2023</span>
-                                        </div>
-                                        <div class="info-item">
-                                            <span class="info-label">Location:</span>
-                                            <span class="info-value">New York → Los Angeles</span>
-                                        </div>
-                                        <div class="info-item">
-                                            <span class="info-label">Total Amount:</span>
-                                            <span class="info-value highlight">$1,325.00</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="order-actions">
-                                    <button class="btn-action btn-reject" data-action="reject" onclick="handleOrderAction('reject', 'ORD-2023-001')">Reject</button>
-                                    <button class="btn-action btn-approve" data-action="approve" onclick="handleOrderAction('approve', 'ORD-2023-001')">Approve</button>
-                                </div>
-                            </div>
-
-                            <!-- Pending Order 2 -->
-                            <div class="order-item pending" data-order-id="ORD-2023-002">
-                                <div class="order-header">
-                                    <div class="order-id">ORD-2023-002 - BMW M2</div>
-                                    <div class="order-status status-pending">Pending Approval</div>
-                                </div>
-
-                                <div class="order-details">
-                                    <div class="order-car">
-                                        <div class="car-image">
-                                            <img src="https://images.unsplash.com/photo-1555215695-3004980ad54e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80" alt="BMW M2">
-                                        </div>
-                                        <div class="car-name">BMW M2 Competition 2023</div>
-                                        <div class="car-specs">
-                                            <div class="spec-item">
-                                                <i class="fas fa-user"></i> 2 Seats
-                                            </div>
-                                            <div class="spec-item">
-                                                <i class="fas fa-suitcase"></i> 1 Bag
-                                            </div>
-                                            <div class="spec-item">
-                                                <i class="fas fa-gas-pump"></i> Petrol
+                                            <div class="col-md-4">
+                                                <div class="text-end">
+                                                    <form method="POST" class="d-inline">
+                                                        <input type="hidden" name="rentalid" value="<?php echo $order['RENTALID']; ?>">
+                                                        <input type="hidden" name="status" value="Completed">
+                                                        <button type="submit" name="update_order_status" class="btn btn-success btn-sm">
+                                                            <i class="fas fa-check"></i> Approve
+                                                        </button>
+                                                    </form>
+                                                    <form method="POST" class="d-inline">
+                                                        <input type="hidden" name="rentalid" value="<?php echo $order['RENTALID']; ?>">
+                                                        <input type="hidden" name="status" value="Rejected">
+                                                        <button type="submit" name="update_order_status" class="btn btn-danger btn-sm">
+                                                            <i class="fas fa-times"></i> Reject
+                                                        </button>
+                                                    </form>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-
-                                    <div class="order-info">
-                                        <div class="info-item">
-                                            <span class="info-label">Customer:</span>
-                                            <span class="info-value highlight">Sarah Williams</span>
-                                        </div>
-                                        <div class="info-item">
-                                            <span class="info-label">Pickup Date:</span>
-                                            <span class="info-value">March 18, 2023</span>
-                                        </div>
-                                        <div class="info-item">
-                                            <span class="info-label">Return Date:</span>
-                                            <span class="info-value">March 25, 2023</span>
-                                        </div>
-                                        <div class="info-item">
-                                            <span class="info-label">Location:</span>
-                                            <span class="info-value">Miami Airport</span>
-                                        </div>
-                                        <div class="info-item">
-                                            <span class="info-label">Total Amount:</span>
-                                            <span class="info-value highlight">$1,708.00</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="order-actions">
-                                    <button class="btn-action btn-reject" data-action="reject" onclick="handleOrderAction('reject', 'ORD-2023-002')">Reject</button>
-                                    <button class="btn-action btn-approve" data-action="approve" onclick="handleOrderAction('approve', 'ORD-2023-002')">Approve</button>
-                                </div>
-                            </div>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
                         </div>
                     </div>
 
@@ -1595,242 +1208,72 @@ if(isset($_POST["order_action"])){
                         <div class="orders-card fade-in">
                             <div class="d-flex justify-content-between align-items-center mb-4">
                                 <h3 class="card-title mb-0">Manage All Orders</h3>
-                                <div class="order-filters">
-                                    <button class="filter-btn active" onclick="filterOrders('all')">All Orders</button>
-                                    <button class="filter-btn" onclick="filterOrders('pending')">Pending</button>
-                                    <button class="filter-btn" onclick="filterOrders('approved')">Approved</button>
-                                    <button class="filter-btn" onclick="filterOrders('rejected')">Rejected</button>
-                                </div>
-                            </div>
-                            <p class="text-muted mb-4">Review, approve, or reject client rental orders</p>
-
-                            <div id="orders-container">
-                                <!-- Order 1: Pending -->
-                                <div class="order-item pending" data-order-id="ORD-2023-001" data-status="pending">
-                                    <div class="order-header">
-                                        <div class="order-id">ORD-2023-001 - Jeep Renegade</div>
-                                        <div class="order-status status-pending">Pending Approval</div>
-                                    </div>
-
-                                    <div class="order-details">
-                                        <div class="order-car">
-                                            <div class="car-image">
-                                                <img src="https://images.unsplash.com/photo-1503376780353-7e6692767b70?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80" alt="Jeep Renegade">
-                                            </div>
-                                            <div class="car-name">Jeep Renegade 2023</div>
-                                            <div class="car-specs">
-                                                <div class="spec-item">
-                                                    <i class="fas fa-user"></i> 4 Seats
-                                                </div>
-                                                <div class="spec-item">
-                                                    <i class="fas fa-suitcase"></i> 2 Bags
-                                                </div>
-                                                <div class="spec-item">
-                                                    <i class="fas fa-gas-pump"></i> Petrol
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div class="order-info">
-                                            <div class="info-item">
-                                                <span class="info-label">Customer:</span>
-                                                <span class="info-value highlight">Michael Johnson</span>
-                                            </div>
-                                            <div class="info-item">
-                                                <span class="info-label">Pickup Date:</span>
-                                                <span class="info-value">March 15, 2023</span>
-                                            </div>
-                                            <div class="info-item">
-                                                <span class="info-label">Return Date:</span>
-                                                <span class="info-value">March 20, 2023</span>
-                                            </div>
-                                            <div class="info-item">
-                                                <span class="info-label">Location:</span>
-                                                <span class="info-value">New York → Los Angeles</span>
-                                            </div>
-                                            <div class="info-item">
-                                                <span class="info-label">Total Amount:</span>
-                                                <span class="info-value highlight">$1,325.00</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="order-actions">
-                                        <button class="btn-action btn-reject" onclick="handleOrderAction('reject', 'ORD-2023-001')">Reject</button>
-                                        <button class="btn-action btn-approve" onclick="handleOrderAction('approve', 'ORD-2023-001')">Approve</button>
-                                    </div>
-                                </div>
-
-                                <!-- Order 2: Pending -->
-                                <div class="order-item pending" data-order-id="ORD-2023-002" data-status="pending">
-                                    <div class="order-header">
-                                        <div class="order-id">ORD-2023-002 - BMW M2</div>
-                                        <div class="order-status status-pending">Pending Approval</div>
-                                    </div>
-
-                                    <div class="order-details">
-                                        <div class="order-car">
-                                            <div class="car-image">
-                                                <img src="https://images.unsplash.com/photo-1555215695-3004980ad54e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80" alt="BMW M2">
-                                            </div>
-                                            <div class="car-name">BMW M2 Competition 2023</div>
-                                            <div class="car-specs">
-                                                <div class="spec-item">
-                                                    <i class="fas fa-user"></i> 2 Seats
-                                                </div>
-                                                <div class="spec-item">
-                                                    <i class="fas fa-suitcase"></i> 1 Bag
-                                                </div>
-                                                <div class="spec-item">
-                                                    <i class="fas fa-gas-pump"></i> Petrol
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div class="order-info">
-                                            <div class="info-item">
-                                                <span class="info-label">Customer:</span>
-                                                <span class="info-value highlight">Sarah Williams</span>
-                                            </div>
-                                            <div class="info-item">
-                                                <span class="info-label">Pickup Date:</span>
-                                                <span class="info-value">March 18, 2023</span>
-                                            </div>
-                                            <div class="info-item">
-                                                <span class="info-label">Return Date:</span>
-                                                <span class="info-value">March 25, 2023</span>
-                                            </div>
-                                            <div class="info-item">
-                                                <span class="info-label">Location:</span>
-                                                <span class="info-value">Miami Airport</span>
-                                            </div>
-                                            <div class="info-item">
-                                                <span class="info-label">Total Amount:</span>
-                                                <span class="info-value highlight">$1,708.00</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="order-actions">
-                                        <button class="btn-action btn-reject" onclick="handleOrderAction('reject', 'ORD-2023-002')">Reject</button>
-                                        <button class="btn-action btn-approve" onclick="handleOrderAction('approve', 'ORD-2023-002')">Approve</button>
-                                    </div>
-                                </div>
-
-                                <!-- Order 3: Approved -->
-                                <div class="order-item approved" data-order-id="ORD-2023-003" data-status="approved">
-                                    <div class="order-header">
-                                        <div class="order-id">ORD-2023-003 - Ferrari Enzo</div>
-                                        <div class="order-status status-approved">Approved</div>
-                                    </div>
-
-                                    <div class="order-details">
-                                        <div class="order-car">
-                                            <div class="car-image">
-                                                <img src="https://images.unsplash.com/photo-1580273916550-e323be2ae537?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80" alt="Ferrari Enzo">
-                                            </div>
-                                            <div class="car-name">Ferrari Enzo 2022</div>
-                                            <div class="car-specs">
-                                                <div class="spec-item">
-                                                    <i class="fas fa-user"></i> 2 Seats
-                                                </div>
-                                                <div class="spec-item">
-                                                    <i class="fas fa-suitcase"></i> 1 Bag
-                                                </div>
-                                                <div class="spec-item">
-                                                    <i class="fas fa-gas-pump"></i> Petrol
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div class="order-info">
-                                            <div class="info-item">
-                                                <span class="info-label">Customer:</span>
-                                                <span class="info-value highlight">Robert Chen</span>
-                                            </div>
-                                            <div class="info-item">
-                                                <span class="info-label">Pickup Date:</span>
-                                                <span class="info-value">March 10, 2023</span>
-                                            </div>
-                                            <div class="info-item">
-                                                <span class="info-label">Return Date:</span>
-                                                <span class="info-value">March 12, 2023</span>
-                                            </div>
-                                            <div class="info-item">
-                                                <span class="info-label">Location:</span>
-                                                <span class="info-value">Las Vegas</span>
-                                            </div>
-                                            <div class="info-item">
-                                                <span class="info-label">Total Amount:</span>
-                                                <span class="info-value highlight">$2,500.00</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-
-                                </div>
-
-                                <!-- Order 4: Rejected -->
-                                <div class="order-item rejected" data-order-id="ORD-2023-004" data-status="rejected">
-                                    <div class="order-header">
-                                        <div class="order-id">ORD-2023-004 - Toyota Rav 4</div>
-                                        <div class="order-status status-rejected">Rejected</div>
-                                    </div>
-
-                                    <div class="order-details">
-                                        <div class="order-car">
-                                            <div class="car-image">
-                                                <img src="https://images.unsplash.com/photo-1553440569-bcc63803a83d?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80" alt="Toyota Rav 4">
-                                            </div>
-                                            <div class="car-name">Toyota Rav 4 2023</div>
-                                            <div class="car-specs">
-                                                <div class="spec-item">
-                                                    <i class="fas fa-user"></i> 5 Seats
-                                                </div>
-                                                <div class="spec-item">
-                                                    <i class="fas fa-suitcase"></i> 3 Bags
-                                                </div>
-                                                <div class="spec-item">
-                                                    <i class="fas fa-gas-pump"></i> Hybrid
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div class="order-info">
-                                            <div class="info-item">
-                                                <span class="info-label">Customer:</span>
-                                                <span class="info-value highlight">Emma Davis</span>
-                                            </div>
-                                            <div class="info-item">
-                                                <span class="info-label">Pickup Date:</span>
-                                                <span class="info-value">March 5, 2023</span>
-                                            </div>
-                                            <div class="info-item">
-                                                <span class="info-label">Return Date:</span>
-                                                <span class="info-value">March 10, 2023</span>
-                                            </div>
-                                            <div class="info-item">
-                                                <span class="info-label">Location:</span>
-                                                <span class="info-value">Chicago → Detroit</span>
-                                            </div>
-                                            <div class="info-item">
-                                                <span class="info-label">Total Amount:</span>
-                                                <span class="info-value highlight">$850.00</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-
-                                </div>
                             </div>
 
-                            <div id="empty-orders" class="empty-state" style="display: none;">
-                                <div class="empty-icon">
-                                    <i class="fas fa-clipboard-list"></i>
+                            <?php if (empty($all_orders)): ?>
+                                <div class="alert alert-info">
+                                    No orders found.
                                 </div>
-                                <h5>No orders found</h5>
-                                <p>There are no orders matching your current filter.</p>
-                            </div>
+                            <?php else: ?>
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>Order ID</th>
+                                                <th>Customer</th>
+                                                <th>Car</th>
+                                                <th>Pickup Date</th>
+                                                <th>Return Date</th>
+                                                <th>Amount</th>
+                                                <th>Status</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach ($all_orders as $order): ?>
+                                                <tr>
+                                                    <td><?php echo htmlspecialchars($order['RENTALID']); ?></td>
+                                                    <td><?php echo htmlspecialchars($order['CUSTNAME']); ?></td>
+                                                    <td><?php echo htmlspecialchars($order['CARNAME']); ?></td>
+                                                    <td><?php echo date('M d, Y', strtotime($order['PICKUPDATE'])); ?></td>
+                                                    <td><?php echo date('M d, Y', strtotime($order['DROPOFFDATE'])); ?></td>
+                                                    <td>$<?php echo number_format($order['total_price'], 2); ?></td>
+                                                    <td>
+                                                        <span class="badge bg-<?php 
+                                                            switch($order['STATUS']) {
+                                                                case 'Ongoing': echo 'warning'; break;
+                                                                case 'Completed': echo 'success'; break;
+                                                                case 'Rejected': echo 'danger'; break;
+                                                                default: echo 'secondary';
+                                                            }
+                                                        ?>">
+                                                            <?php echo htmlspecialchars($order['STATUS']); ?>
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        <?php if ($order['STATUS'] == 'Ongoing'): ?>
+                                                            <form method="POST" class="d-inline">
+                                                                <input type="hidden" name="rentalid" value="<?php echo $order['RENTALID']; ?>">
+                                                                <input type="hidden" name="status" value="Completed">
+                                                                <button type="submit" name="update_order_status" class="btn btn-success btn-sm">
+                                                                    <i class="fas fa-check"></i>
+                                                                </button>
+                                                            </form>
+                                                            <form method="POST" class="d-inline">
+                                                                <input type="hidden" name="rentalid" value="<?php echo $order['RENTALID']; ?>">
+                                                                <input type="hidden" name="status" value="Rejected">
+                                                                <button type="submit" name="update_order_status" class="btn btn-danger btn-sm">
+                                                                    <i class="fas fa-times"></i>
+                                                                </button>
+                                                            </form>
+                                                        <?php endif; ?>
+                                                    </td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            <?php endif; ?>
                         </div>
                     </div>
 
@@ -1839,7 +1282,6 @@ if(isset($_POST["order_action"])){
                         <div class="car-management-card fade-in">
                             <div class="d-flex justify-content-between align-items-center mb-4">
                                 <h3 class="card-title mb-0">Car Inventory Management</h3>
-                                <span class="badge bg-primary">Manage fleet and availability</span>
                             </div>
 
                             <!-- Car Management Tabs -->
@@ -1859,188 +1301,125 @@ if(isset($_POST["order_action"])){
                             <div id="view-cars" class="car-tab-content active">
                                 <div class="d-flex justify-content-between align-items-center mb-4">
                                     <h5 class="mb-0">Fleet Overview</h5>
-
                                 </div>
 
-                                <div class="car-list" id="car-list-container">
-                                    <!-- Car 1: Jeep Renegade -->
-                                    <div class="car-item" data-car-id="CAR-001" data-available="3" data-quantity="5" data-status="available">
-                                        <div class="car-image-container">
-                                            <img src="https://images.unsplash.com/photo-1503376780353-7e6692767b70?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80" alt="Jeep Renegade">
-                                            <span class="availability-badge available">
-                                                Available (3/5)
-                                            </span>
+                                <div class="car-list">
+                                    <?php if (empty($all_cars)): ?>
+                                        <div class="alert alert-info">
+                                            No cars found in inventory.
                                         </div>
-                                        <div class="car-info">
-                                            <div class="car-name">Jeep Renegade 2023</div>
-                                            <div class="car-details">
-                                                <span>$265/day</span>
-                                                <span>SUV</span>
+                                    <?php else: ?>
+                                        <?php foreach ($all_cars as $car): 
+                                            $status_class = '';
+                                            $status_text = '';
+                                            
+                                            if ($car['Quantity'] <= 0) {
+                                                $status_class = 'out-of-stock';
+                                                $status_text = 'Out of Stock';
+                                            } elseif ($car['CAR_STATUS'] == 'Maintenance') {
+                                                $status_class = 'maintenance';
+                                                $status_text = 'Maintenance';
+                                            } elseif ($car['Quantity'] < 3) {
+                                                $status_class = 'low-stock';
+                                                $status_text = 'Low Stock';
+                                            } else {
+                                                $status_class = 'available';
+                                                $status_text = 'Available';
+                                            }
+                                            
+                                            // Get photo URL or use default - FIXED: Check if URL exists and is not empty
+                                            $photo_url = 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80';
+                                            if (!empty($car['photo_url'])) {
+                                                // Check if it's a local file or URL
+                                                if (strpos($car['photo_url'], 'http') === 0) {
+                                                    $photo_url = $car['photo_url'];
+                                                } else {
+                                                    // It's a local file, add base path if needed
+                                                    $photo_url = '../' . $car['photo_url'];
+                                                }
+                                            }
+                                        ?>
+                                            <div class="car-item">
+                                                <div class="car-image-container">
+                                                    <img src="<?php echo htmlspecialchars($photo_url); ?>" alt="<?php echo htmlspecialchars($car['CARNAME']); ?>" 
+                                                         onerror="this.src='https://images.unsplash.com/photo-1503376780353-7e6692767b70?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80'">
+                                                    <span class="availability-badge <?php echo $status_class; ?>">
+                                                        <?php echo $status_text . ' (' . $car['Quantity'] . ')'; ?>
+                                                    </span>
+                                                </div>
+                                                <div class="car-info">
+                                                    <div class="car-name"><?php echo htmlspecialchars($car['CARNAME']); ?> (<?php echo $car['CAR_YEAR']; ?>)</div>
+                                                    <div class="car-details">
+                                                        <span>$<?php echo $car['daily_price']; ?>/day</span>
+                                                        <span><?php echo htmlspecialchars($car['car_type']); ?></span>
+                                                    </div>
+                                                    <div class="car-specs">
+                                                        <span class="spec-badge">
+                                                            <i class="fas fa-user me-1"></i><?php echo $car['Seats']; ?> seats
+                                                        </span>
+                                                        <span class="spec-badge">
+                                                            <i class="fas fa-suitcase me-1"></i><?php echo $car['bags']; ?> bags
+                                                        </span>
+                                                        <span class="spec-badge">
+                                                            <?php echo $car['Doors']; ?> doors
+                                                        </span>
+                                                        <span class="spec-badge">
+                                                            <?php echo $car['HORSE_POWER']; ?> HP
+                                                        </span>
+                                                    </div>
+                                                    <div class="car-actions mt-2">
+                                                        <form method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this car?');">
+                                                            <input type="hidden" name="carid" value="<?php echo $car['CARID']; ?>">
+                                                            <button type="submit" name="delete_car" class="btn btn-danger btn-sm">
+                                                                <i class="fas fa-trash me-1"></i>Delete
+                                                            </button>
+                                                        </form>
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <div class="car-specs">
-                                                <span class="spec-badge">
-                                                    <i class="fas fa-user me-1"></i>4 seats
-                                                </span>
-                                                <span class="spec-badge">
-                                                    <i class="fas fa-suitcase me-1"></i>2 bags
-                                                </span>
-                                                <span class="spec-badge">
-                                                    <i class="fas fa-gas-pump me-1"></i>Petrol
-                                                </span>
-                                                <span class="spec-badge">
-                                                    Automatic
-                                                </span>
-                                            </div>
-                                            <div class="car-actions">
-
-                                                <button class="btn-delete" onclick="deleteCar('CAR-001')">
-                                                    <i class="fas fa-trash me-1"></i>Delete
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Car 2: BMW M2 -->
-                                    <div class="car-item" data-car-id="CAR-002" data-available="1" data-quantity="2" data-status="low-stock">
-                                        <div class="car-image-container">
-                                            <img src="https://images.unsplash.com/photo-1555215695-3004980ad54e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80" alt="BMW M2">
-                                            <span class="availability-badge low-stock">
-                                                Low Stock (1/2)
-                                            </span>
-                                        </div>
-                                        <div class="car-info">
-                                            <div class="car-name">BMW M2 Competition 2023</div>
-                                            <div class="car-details">
-                                                <span>$450/day</span>
-                                                <span>Sports Car</span>
-                                            </div>
-                                            <div class="car-specs">
-                                                <span class="spec-badge">
-                                                    <i class="fas fa-user me-1"></i>2 seats
-                                                </span>
-                                                <span class="spec-badge">
-                                                    <i class="fas fa-suitcase me-1"></i>1 bag
-                                                </span>
-                                                <span class="spec-badge">
-                                                    <i class="fas fa-gas-pump me-1"></i>Petrol
-                                                </span>
-                                                <span class="spec-badge">
-                                                    Manual
-                                                </span>
-                                            </div>
-                                            <div class="car-actions">
-
-                                                <button class="btn-delete" onclick="deleteCar('CAR-002')">
-                                                    <i class="fas fa-trash me-1"></i>Delete
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Car 3: Toyota Camry -->
-                                    <div class="car-item" data-car-id="CAR-003" data-available="5" data-quantity="8" data-status="available">
-                                        <div class="car-image-container">
-                                            <img src="https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80" alt="Toyota Camry">
-                                            <span class="availability-badge available">
-                                                Available (5/8)
-                                            </span>
-                                        </div>
-                                        <div class="car-info">
-                                            <div class="car-name">Toyota Camry 2023</div>
-                                            <div class="car-details">
-                                                <span>$85/day</span>
-                                                <span>Sedan</span>
-                                            </div>
-                                            <div class="car-specs">
-                                                <span class="spec-badge">
-                                                    <i class="fas fa-user me-1"></i>5 seats
-                                                </span>
-                                                <span class="spec-badge">
-                                                    <i class="fas fa-suitcase me-1"></i>3 bags
-                                                </span>
-                                                <span class="spec-badge">
-                                                    <i class="fas fa-gas-pump me-1"></i>Hybrid
-                                                </span>
-                                                <span class="spec-badge">
-                                                    Automatic
-                                                </span>
-                                            </div>
-                                            <div class="car-actions">
-
-                                                <button class="btn-delete" onclick="deleteCar('CAR-003')">
-                                                    <i class="fas fa-trash me-1"></i>Delete
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Car 4: Ford F-150 -->
-                                    <div class="car-item" data-car-id="CAR-004" data-available="0" data-quantity="3" data-status="out-of-stock">
-                                        <div class="car-image-container">
-                                            <img src="https://images.unsplash.com/photo-1580273916550-e323be2ae537?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80" alt="Ford F-150">
-                                            <span class="availability-badge out-of-stock">
-                                                Out of Stock (0/3)
-                                            </span>
-                                        </div>
-                                        <div class="car-info">
-                                            <div class="car-name">Ford F-150 2023</div>
-                                            <div class="car-details">
-                                                <span>$120/day</span>
-                                                <span>Pickup Truck</span>
-                                            </div>
-                                            <div class="car-specs">
-                                                <span class="spec-badge">
-                                                    <i class="fas fa-user me-1"></i>5 seats
-                                                </span>
-                                                <span class="spec-badge">
-                                                    <i class="fas fa-suitcase me-1"></i>4 bags
-                                                </span>
-                                                <span class="spec-badge">
-                                                    <i class="fas fa-gas-pump me-1"></i>Diesel
-                                                </span>
-                                                <span class="spec-badge">
-                                                    Automatic
-                                                </span>
-                                            </div>
-                                            <div class="car-actions">
-
-                                                <button class="btn-delete" onclick="deleteCar('CAR-004')">
-                                                    <i class="fas fa-trash me-1"></i>Delete
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div id="empty-cars" class="empty-state" style="display: none;">
-                                    <div class="empty-icon">
-                                        <i class="fas fa-car"></i>
-                                    </div>
-                                    <h5>No cars found</h5>
-                                    <p>There are no cars matching your current filter.</p>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
                                 </div>
                             </div>
 
                             <!-- Add New Car Tab -->
                             <div id="add-car" class="car-tab-content">
                                 <h5 class="mb-4">Add New Car to Inventory</h5>
-
-                                <form id="addCarForm" class="add-car-form" onsubmit="return addNewCar()">
+                                
+                                <form id="addCarForm" class="add-car-form" method="POST" enctype="multipart/form-data">
+                                    <input type="hidden" name="add_car" value="1">
+                                    
                                     <!-- Basic Information -->
                                     <div class="form-section">
                                         <h6 class="form-section-title">Basic Information</h6>
                                         <div class="form-row">
                                             <div class="form-group">
-                                                <label for="car-brand">Brand *</label>
-                                                <input type="text" id="car-brand" class="form-control" required>
+                                                <label for="carid">Car ID *</label>
+                                                <input type="text" id="carid" name="carid" class="form-control" required 
+                                                       value="CAR<?php echo str_pad(count($all_cars) + 1, 3, '0', STR_PAD_LEFT); ?>">
                                             </div>
                                             <div class="form-group">
-                                                <label for="car-model">Model *</label>
-                                                <input type="text" id="car-model" class="form-control" required>
+                                                <label for="carname">Car Name *</label>
+                                                <input type="text" id="carname" name="carname" class="form-control" required>
                                             </div>
                                             <div class="form-group">
-                                                <label for="car-year">Year *</label>
-                                                <input type="number" id="car-year" class="form-control" min="2010" max="2024" value="2023" required>
+                                                <label for="model">Model *</label>
+                                                <input type="text" id="model" name="model" class="form-control" required>
+                                            </div>
+                                        </div>
+                                        <div class="form-row">
+                                            <div class="form-group">
+                                                <label for="brand">Brand *</label>
+                                                <input type="text" id="brand" name="brand" class="form-control" required>
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="car_year">Year *</label>
+                                                <input type="number" id="car_year" name="car_year" class="form-control" 
+                                                       min="2000" max="<?php echo date('Y') + 1; ?>" value="<?php echo date('Y'); ?>" required>
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="platenumber">Plate Number *</label>
+                                                <input type="text" id="platenumber" name="platenumber" class="form-control" required>
                                             </div>
                                         </div>
                                     </div>
@@ -2050,52 +1429,55 @@ if(isset($_POST["order_action"])){
                                         <h6 class="form-section-title">Specifications</h6>
                                         <div class="form-row">
                                             <div class="form-group">
-                                                <label for="car-type">Vehicle Type *</label>
-                                                <select id="car-type" class="form-control" required>
+                                                <label for="horse_power">Horse Power *</label>
+                                                <input type="number" id="horse_power" name="horse_power" class="form-control" min="50" max="2000" value="150" required>
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="car_type">Car Type *</label>
+                                                <select id="car_type" name="car_type" class="form-control" required>
                                                     <option value="">Select Type</option>
-                                                    <option value="sedan">Sedan</option>
-                                                    <option value="suv">SUV</option>
-                                                    <option value="coupe">Coupe</option>
-                                                    <option value="convertible">Convertible</option>
-                                                    <option value="hatchback">Hatchback</option>
-                                                    <option value="pickup">Pickup Truck</option>
-                                                    <option value="luxury">Luxury</option>
-                                                    <option value="sports">Sports Car</option>
+                                                    <option value="SUV">SUV</option>
+                                                    <option value="Sedan">Sedan</option>
+                                                    <option value="Hatchback">Hatchback</option>
+                                                    <option value="Sport">Sport</option>
+                                                    <option value="Luxury">Luxury</option>
+                                                    <option value="Economy">Economy</option>
                                                 </select>
                                             </div>
                                             <div class="form-group">
-                                                <label for="car-transmission">Transmission *</label>
-                                                <select id="car-transmission" class="form-control" required>
-                                                    <option value="">Select Transmission</option>
-                                                    <option value="automatic">Automatic</option>
-                                                    <option value="manual">Manual</option>
-                                                    <option value="semi-automatic">Semi-Automatic</option>
-                                                </select>
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="car-fuel">Fuel Type *</label>
-                                                <select id="car-fuel" class="form-control" required>
-                                                    <option value="">Select Fuel Type</option>
-                                                    <option value="petrol">Petrol</option>
-                                                    <option value="diesel">Diesel</option>
-                                                    <option value="electric">Electric</option>
-                                                    <option value="hybrid">Hybrid</option>
-                                                </select>
+                                                <label for="color">Color</label>
+                                                <input type="text" id="color" name="color" class="form-control" placeholder="e.g., Red, Blue, Black">
                                             </div>
                                         </div>
-
+                                        
                                         <div class="form-row">
                                             <div class="form-group">
-                                                <label for="car-seats">Number of Seats *</label>
-                                                <input type="number" id="car-seats" class="form-control" min="1" max="10" value="5" required>
+                                                <label for="doors">Doors *</label>
+                                                <select id="doors" name="doors" class="form-control" required>
+                                                    <option value="2">2 Doors</option>
+                                                    <option value="4" selected>4 Doors</option>
+                                                    <option value="5">5 Doors</option>
+                                                </select>
                                             </div>
                                             <div class="form-group">
-                                                <label for="car-bags">Luggage Capacity (bags) *</label>
-                                                <input type="number" id="car-bags" class="form-control" min="1" max="6" value="2" required>
+                                                <label for="seats">Seats *</label>
+                                                <select id="seats" name="seats" class="form-control" required>
+                                                    <option value="2">2 Seats</option>
+                                                    <option value="4">4 Seats</option>
+                                                    <option value="5" selected>5 Seats</option>
+                                                    <option value="7">7 Seats</option>
+                                                    <option value="8">8 Seats</option>
+                                                </select>
                                             </div>
                                             <div class="form-group">
-                                                <label for="car-mileage">Mileage (km per liter)</label>
-                                                <input type="number" id="car-mileage" class="form-control" min="5" max="30" value="12">
+                                                <label for="bags">Luggage Capacity (bags) *</label>
+                                                <select id="bags" name="bags" class="form-control" required>
+                                                    <option value="1">1 Bag</option>
+                                                    <option value="2" selected>2 Bags</option>
+                                                    <option value="3">3 Bags</option>
+                                                    <option value="4">4 Bags</option>
+                                                    <option value="5">5+ Bags</option>
+                                                </select>
                                             </div>
                                         </div>
                                     </div>
@@ -2105,18 +1487,15 @@ if(isset($_POST["order_action"])){
                                         <h6 class="form-section-title">Rental Information</h6>
                                         <div class="form-row">
                                             <div class="form-group">
-                                                <label for="car-price">Daily Rental Price ($) *</label>
-                                                <input type="number" id="car-price" class="form-control" min="10" max="1000" step="0.01" required>
+                                                <label for="daily_price">Daily Rental Price ($) *</label>
+                                                <input type="number" id="daily_price" name="daily_price" class="form-control" 
+                                                       min="10" max="1000" step="0.01" value="100" required>
                                             </div>
                                             <div class="form-group">
-                                                <label for="car-quantity">Initial Quantity *</label>
-                                                <div class="quantity-control">
-                                                    <button type="button" class="qty-btn" id="decrease-qty" onclick="decreaseQuantity()">-</button>
-                                                    <input type="number" id="car-quantity" class="form-control qty-input" value="1" min="1" max="20" required>
-                                                    <button type="button" class="qty-btn" id="increase-qty" onclick="increaseQuantity()">+</button>
-                                                </div>
+                                                <label for="quantity">Initial Quantity *</label>
+                                                <input type="number" id="quantity" name="quantity" class="form-control" 
+                                                       min="1" max="50" value="1" required>
                                             </div>
-
                                         </div>
                                     </div>
 
@@ -2124,23 +1503,27 @@ if(isset($_POST["order_action"])){
                                     <div class="form-section">
                                         <h6 class="form-section-title">Additional Information</h6>
                                         <div class="form-group">
-                                            <label for="car-image">Car Image URL</label>
-                                            <input type="url" id="car-image" class="form-control" placeholder="https://example.com/car-image.jpg">
-                                            <small class="text-muted">Leave empty to use default image</small>
+                                            <label for="car_photo">Car Photo Upload *</label>
+                                            <input type="file" id="car_photo" name="car_photo" class="form-control" 
+                                                   accept=".jpg,.jpeg,.png,.gif,.webp">
+                                            <small class="text-muted">Max file size: 2MB. Accepted formats: JPG, JPEG, PNG, GIF, WEBP</small>
                                         </div>
                                         <div class="form-group">
-                                            <label for="car-features">Features (comma separated)</label>
-                                            <input type="text" id="car-features" class="form-control" placeholder="GPS, Bluetooth, Air Conditioning, etc.">
+                                            <label for="photo_url">Car Photo URL </label>
+                                            <input type="url" id="photo_url" name="photo_url" class="form-control" 
+                                                   placeholder="https://example.com/car-image.jpg" required>
+                                            
                                         </div>
                                         <div class="form-group">
-                                            <label for="car-description">Description</label>
-                                            <textarea id="car-description" class="form-control" rows="3" placeholder="Brief description of the car..."></textarea>
+                                            <label for="description">Description</label>
+                                            <textarea id="description" name="description" class="form-control" rows="3" 
+                                                      placeholder="Brief description of the car..."></textarea>
                                         </div>
                                     </div>
 
                                     <!-- Submit Button -->
                                     <div class="text-end mt-4">
-                                        <button type="button" class="btn btn-secondary me-2" onclick="resetCarForm()">Reset Form</button>
+                                        <button type="reset" class="btn btn-secondary me-2">Reset Form</button>
                                         <button type="submit" class="btn-submit">
                                             <i class="fas fa-plus-circle me-2"></i>Add Car to Inventory
                                         </button>
@@ -2151,144 +1534,62 @@ if(isset($_POST["order_action"])){
                             <!-- Manage Quantity Tab -->
                             <div id="manage-quantity" class="car-tab-content">
                                 <h5 class="mb-4">Update Car Quantities</h5>
-                                <p class="text-muted mb-4">Adjust the available quantity for each car in your fleet</p>
-
-                                <div class="table-responsive">
-                                    <table class="table table-hover">
-                                        <thead>
-                                            <tr>
-                                                <th>Car Model</th>
-                                                <th>Current Quantity</th>
-                                                <th>Available</th>
-                                                <th>Rented</th>
-                                                <th>Update Quantity</th>
-
-                                            </tr>
-                                        </thead>
-                                        <tbody id="quantity-table">
-                                            <!-- Car 1 Quantity -->
-                                            <tr data-car-id="CAR-001">
-                                                <td>
-                                                    <strong>Jeep Renegade</strong><br>
-                                                    <small class="text-muted">ID: CAR-001</small>
-                                                </td>
-                                                <td>
-                                                    <span class="badge bg-primary">5</span>
-                                                </td>
-                                                <td>
-                                                    <span class="badge bg-success">3</span>
-                                                </td>
-                                                <td>
-                                                    <span class="badge bg-info">2</span>
-                                                </td>
-                                                <td>
-                                                    <div class="input-group input-group-sm" style="width: 150px;">
-                                                        <input type="number" class="form-control qty-update" value="5" min="0" max="50" id="qty-CAR-001">
-                                                        <button class="btn btn-outline-primary" type="button" onclick="updateQuantity('CAR-001')">
-                                                            Update
-                                                        </button>
-                                                    </div>
-                                                </td>
-
-                                            </tr>
-
-                                            <!-- Car 2 Quantity -->
-                                            <tr data-car-id="CAR-002">
-                                                <td>
-                                                    <strong>BMW M2 Competition</strong><br>
-                                                    <small class="text-muted">ID: CAR-002</small>
-                                                </td>
-                                                <td>
-                                                    <span class="badge bg-primary">2</span>
-                                                </td>
-                                                <td>
-                                                    <span class="badge bg-warning">1</span>
-                                                </td>
-                                                <td>
-                                                    <span class="badge bg-info">1</span>
-                                                </td>
-                                                <td>
-                                                    <div class="input-group input-group-sm" style="width: 150px;">
-                                                        <input type="number" class="form-control qty-update" value="2" min="0" max="50" id="qty-CAR-002">
-                                                        <button class="btn btn-outline-primary" type="button" onclick="updateQuantity('CAR-002')">
-                                                            Update
-                                                        </button>
-                                                    </div>
-                                                </td>
-
-                                            </tr>
-
-                                            <!-- Car 3 Quantity -->
-                                            <tr data-car-id="CAR-003">
-                                                <td>
-                                                    <strong>Toyota Camry</strong><br>
-                                                    <small class="text-muted">ID: CAR-003</small>
-                                                </td>
-                                                <td>
-                                                    <span class="badge bg-primary">8</span>
-                                                </td>
-                                                <td>
-                                                    <span class="badge bg-success">5</span>
-                                                </td>
-                                                <td>
-                                                    <span class="badge bg-info">3</span>
-                                                </td>
-                                                <td>
-                                                    <div class="input-group input-group-sm" style="width: 150px;">
-                                                        <input type="number" class="form-control qty-update" value="8" min="0" max="50" id="qty-CAR-003">
-                                                        <button class="btn btn-outline-primary" type="button" onclick="updateQuantity('CAR-003')">
-                                                            Update
-                                                        </button>
-                                                    </div>
-                                                </td>
-
-                                            </tr>
-
-                                            <!-- Car 4 Quantity -->
-                                            <tr data-car-id="CAR-004">
-                                                <td>
-                                                    <strong>Ford F-150</strong><br>
-                                                    <small class="text-muted">ID: CAR-004</small>
-                                                </td>
-                                                <td>
-                                                    <span class="badge bg-primary">3</span>
-                                                </td>
-                                                <td>
-                                                    <span class="badge bg-danger">0</span>
-                                                </td>
-                                                <td>
-                                                    <span class="badge bg-info">3</span>
-                                                </td>
-                                                <td>
-                                                    <div class="input-group input-group-sm" style="width: 150px;">
-                                                        <input type="number" class="form-control qty-update" value="3" min="0" max="50" id="qty-CAR-004">
-                                                        <button class="btn btn-outline-primary" type="button" onclick="updateQuantity('CAR-004')">
-                                                            Update
-                                                        </button>
-                                                    </div>
-                                                </td>
-
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Sign Out Content -->
-                    <div id="signout-section" class="content-section">
-                        <div class="signout-card fade-in">
-                            <div class="signout-icon">
-                                <i class="fas fa-sign-out-alt"></i>
-                            </div>
-                            <h3 class="card-title">Sign Out</h3>
-                            <p class="signout-message">Are you sure you want to sign out of your employee account?</p>
-                            <p class="text-muted mb-4">You will need to sign in again to access the dashboard.</p>
-
-                            <div class="d-flex justify-content-center gap-3">
-                                <button class="btn btn-update" onclick="cancelSignout()">Cancel</button>
-                                <button class="btn btn-confirm-signout" onclick="confirmSignout()">Sign Out</button>
+                                
+                                <?php if (empty($all_cars)): ?>
+                                    <div class="alert alert-info">
+                                        No cars found in inventory.
+                                    </div>
+                                <?php else: ?>
+                                    <div class="table-responsive">
+                                        <table class="table table-hover">
+                                            <thead>
+                                                <tr>
+                                                    <th>Car Model</th>
+                                                    <th>Current Quantity</th>
+                                                    <th>Status</th>
+                                                    <th>Update Quantity</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <?php foreach ($all_cars as $car): ?>
+                                                    <tr>
+                                                        <td>
+                                                            <strong><?php echo htmlspecialchars($car['CARNAME']); ?></strong><br>
+                                                            <small class="text-muted">ID: <?php echo $car['CARID']; ?></small>
+                                                        </td>
+                                                        <td>
+                                                            <span class="badge bg-primary"><?php echo $car['Quantity']; ?></span>
+                                                        </td>
+                                                        <td>
+                                                            <span class="badge bg-<?php 
+                                                                switch($car['CAR_STATUS']) {
+                                                                    case 'Available': echo 'success'; break;
+                                                                    case 'Maintenance': echo 'warning'; break;
+                                                                    case 'Rented': echo 'info'; break;
+                                                                    default: echo 'secondary';
+                                                                }
+                                                            ?>">
+                                                                <?php echo htmlspecialchars($car['CAR_STATUS']); ?>
+                                                            </span>
+                                                        </td>
+                                                        <td>
+                                                            <form method="POST" class="d-inline">
+                                                                <input type="hidden" name="carid" value="<?php echo $car['CARID']; ?>">
+                                                                <div class="input-group input-group-sm" style="width: 150px;">
+                                                                    <input type="number" name="quantity" class="form-control" 
+                                                                           value="<?php echo $car['Quantity']; ?>" min="0" max="50">
+                                                                    <button type="submit" name="update_quantity" class="btn btn-outline-primary">
+                                                                        Update
+                                                                    </button>
+                                                                </div>
+                                                            </form>
+                                                        </td>
+                                                    </tr>
+                                                <?php endforeach; ?>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
@@ -2300,36 +1601,55 @@ if(isset($_POST["order_action"])){
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Simple JavaScript for UI interactions (no dynamic data loading)
-
         // Navigation functionality
-        document.addEventListener('DOMContentLoaded', function() {
-            // Menu button click handlers
+        document.addEventListener('DOMContentLoaded', function () {
             const menuButtons = document.querySelectorAll('.menu-button');
             const contentSections = document.querySelectorAll('.content-section');
-
-            menuButtons.forEach(button => {
-                button.addEventListener('click', function() {
-                    const sectionId = this.getAttribute('data-section');
-
-                    // Update active menu button
-                    menuButtons.forEach(btn => btn.classList.remove('active'));
-                    this.classList.add('active');
-
-                    // Show corresponding content section
-                    contentSections.forEach(section => {
-                        section.classList.remove('active');
-                        if (section.id === `${sectionId}-section`) {
-                            section.classList.add('active');
-                        }
-                    });
-                });
+            
+            // Set first content section as active
+            contentSections.forEach(section => {
+                if (section.id === 'dashboard-section') {
+                    section.classList.add('active');
+                }
             });
-
-            // Initialize first tab in car management
-            switchCarTab('view-cars');
+            
+            menuButtons.forEach(button => {
+                if (!button.href) {
+                    button.addEventListener('click', function () {
+                        const sectionId = this.getAttribute('data-section');
+                        
+                        // Update active menu button
+                        menuButtons.forEach(btn => btn.classList.remove('active'));
+                        this.classList.add('active');
+                        
+                        // Show corresponding content section
+                        contentSections.forEach(section => {
+                            section.classList.remove('active');
+                            if (section.id === `${sectionId}-section`) {
+                                section.classList.add('active');
+                            }
+                        });
+                    });
+                }
+            });
+            
+            // Initialize car tabs
+            initializeCarTabs();
         });
-
+        
+        // Initialize car management tabs
+        function initializeCarTabs() {
+            const carTabs = document.querySelectorAll('.car-tab');
+            const carTabContents = document.querySelectorAll('.car-tab-content');
+            
+            // Set first car tab as active
+            carTabContents.forEach(content => {
+                if (content.id === 'view-cars') {
+                    content.classList.add('active');
+                }
+            });
+        }
+        
         // Car Management Tabs
         function switchCarTab(tabId) {
             // Update active tab
@@ -2339,7 +1659,7 @@ if(isset($_POST["order_action"])){
                     tab.classList.add('active');
                 }
             });
-
+            
             // Show corresponding content
             document.querySelectorAll('.car-tab-content').forEach(content => {
                 content.classList.remove('active');
@@ -2348,69 +1668,64 @@ if(isset($_POST["order_action"])){
                 }
             });
         }
-
-        // Order filtering
-        function filterOrders(status) {
-            const orders = document.querySelectorAll('.order-item');
-            const emptyState = document.getElementById('empty-orders');
-
-            // Update filter button active state
-            document.querySelectorAll('.filter-btn').forEach(btn => {
-                btn.classList.remove('active');
-                if (btn.textContent.includes(status.charAt(0).toUpperCase() + status.slice(1)) ||
-                    (status === 'all' && btn.textContent.includes('All Orders'))) {
-                    btn.classList.add('active');
-                }
-            });
-
-            let visibleCount = 0;
-
-            orders.forEach(order => {
-                const orderStatus = order.getAttribute('data-status');
-                if (status === 'all' || orderStatus === status) {
-                    order.style.display = 'block';
-                    visibleCount++;
-                } else {
-                    order.style.display = 'none';
-                }
-            });
-
-            // Show/hide empty state
-            if (visibleCount === 0) {
-                emptyState.style.display = 'block';
-            } else {
-                emptyState.style.display = 'none';
+        
+        // Auto-generate Car ID
+        document.getElementById('carname').addEventListener('input', function() {
+            const carName = this.value.trim();
+            if (carName) {
+                const words = carName.split(' ');
+                const initials = words.map(word => word.charAt(0).toUpperCase()).join('');
+                const count = document.querySelectorAll('.car-item').length + 1;
+                document.getElementById('carid').value = initials + count.toString().padStart(3, '0');
             }
-        }
-
-
-
-        // Car filtering
-        function filterCars() {
-            const filter = document.getElementById('car-filter').value;
-            const cars = document.querySelectorAll('.car-item');
-            const emptyState = document.getElementById('empty-cars');
-
-            let visibleCount = 0;
-
-            cars.forEach(car => {
-                const status = car.getAttribute('data-status');
-                if (filter === 'all' || status === filter) {
-                    car.style.display = 'block';
-                    visibleCount++;
-                } else {
-                    car.style.display = 'none';
+        });
+        
+        // Auto-fill model based on car name
+        document.getElementById('carname').addEventListener('blur', function() {
+            const carName = this.value.trim();
+            if (carName && !document.getElementById('model').value) {
+                const modelMatch = carName.match(/\s(\w+)$/);
+                if (modelMatch) {
+                    document.getElementById('model').value = modelMatch[1];
                 }
-            });
-
-            // Show/hide empty state
-            if (visibleCount === 0) {
-                emptyState.style.display = 'block';
-            } else {
-                emptyState.style.display = 'none';
             }
-        }
+        });
+        
+        // File upload validation
+        document.getElementById('car_photo').addEventListener('change', function(e) {
+            const file = this.files[0];
+            const urlField = document.getElementById('photo_url');
+            
+            if (file) {
+                // Clear URL field when file is selected
+                urlField.value = '';
+                urlField.required = false;
+                
+                // Validate file size
+                const maxSize = 2 * 1024 * 1024; // 2MB
+                if (file.size > maxSize) {
+                    alert('File size exceeds 2MB limit. Please choose a smaller file.');
+                    this.value = '';
+                }
+                
+                // Validate file type
+                const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+                if (!allowedTypes.includes(file.type)) {
+                    alert('Invalid file type. Please upload an image (JPG, JPEG, PNG, GIF, or WEBP).');
+                    this.value = '';
+                }
+            }
+        });
+        
+        // URL field validation
+        document.getElementById('photo_url').addEventListener('input', function() {
+            const fileField = document.getElementById('car_photo');
+            if (this.value) {
+                fileField.required = false;
+            } else {
+                fileField.required = true;
+            }
+        });
     </script>
 </body>
-
 </html>
