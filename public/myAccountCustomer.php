@@ -1,6 +1,83 @@
+
+<?php
+session_start();
+include '../includes/db.php';
+if(!isset($_SESSION['CUSTID']))
+{
+    header("Location:login.php");
+}
+?>
+<?php
+
+if($_SERVER['REQUEST_METHOD']=="POST" && isset($_POST['rentAgain']))
+{
+    $name = $_POST['name'];
+    $price = $_POST['price'];
+    $id = $_POST['id'];
+    $bag = $_POST['bag'];
+    $url = $_POST['url'];
+    $door = $_POST['door'];
+    $seat = $_POST['seats'];
+
+    header("Location:booking-form.php?" . http_build_query([
+    'name' => $name,
+    'price' => $price,
+    'bags' => $bag,
+    'CARID' => $id,
+    'image' => $url,
+    'Doors' => $door
+    
+]));
+exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] == "POST" && isset($_POST['updateProfile'])) {
+
+    $password = trim($_POST['password']);
+    $confirm  = trim($_POST['confirmPassword']);
+    $userID = $_SESSION['CUSTID'];
+
+    if (empty($password) && empty($confirm)) {
+        
+    // do  nothing :)
+    }
+    elseif ($password !== $confirm) {
+        header("Location: myAccountCustomer.php?section=profile&errorConfirm=1");
+        exit;
+    }
+    else {
+        $password_hashed = password_hash($password, PASSWORD_DEFAULT);
+        $stmt = $connect->prepare("UPDATE customer SET Password = ? WHERE CUSTID = ?");
+        $stmt->bind_param("ss", $password_hashed, $userID);
+        $stmt->execute();
+        $stmt->close();
+
+        header("Location: myAccountCustomer.php?section=profile&success=1");
+    }
+    // i edit this after time because that its like like this 
+    if(isset($_POST['FN']) ||  isset($_POST['LN']) || isset($_POST['email']) || isset($_POST['phone']) || isset($_POST['address'])){
+    // ['FN',LN,email,phone,address]
+    $name = $_POST['FN']." ".$_POST['LN'];
+    $email = $_POST['email'];
+    $phone = $_POST['phone'];
+    $address = $_POST['address'];
+
+    $stmt=$connect->prepare("UPDATE customer SET CUSTNAME=? , EMAIL=? , PHONE= ? where CUSTID = ?");
+    $stmt->bind_param("ssss",$name,$email,$phone,$userID);
+    $stmt->execute();
+    $stmt->close();
+
+    $stmt=$connect->prepare("UPDATE customer set ADDRESS= ? where CUSTID = ?");
+    $stmt->bind_param("ss",$address,$userID);
+        $stmt->execute();
+        $stmt->close();
+    header("Location: myAccountCustomer.php?section=profile&success=1");
+    }
+}
+
+?>
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1004,6 +1081,39 @@
                         </div>
                     </div>
                 </div>
+                            <?php 
+                                    $custid = $_SESSION['CUSTID'];
+                                    $stmt=$connect->prepare("SELECT COUNT(*) from rental where STATUS='Ongoing' and CUSTID = '$custid' ");
+                                    $stmt->execute();
+                                    $INCOMING=$stmt->get_result()->fetch_column();
+                                    $stmt->close();
+
+                                    $stmt=$connect->prepare("SELECT COUNT(*) from rental where  CUSTID = '$custid' ");
+                                    $stmt->execute();
+                                    $COMPLETE=$stmt->get_result()->fetch_column();
+                                    $stmt->close();
+
+                                    $stmt=$connect->prepare("SELECT COUNT(*) from rental where STATUS='Canceled' and CUSTID = '$custid'");
+                                    $stmt->execute();
+                                    $Canceled=$stmt->get_result()->fetch_column();
+                                    $stmt->close();
+
+                                $stmt = $connect->prepare("
+                                    SELECT 
+                                        c.CARNAME,
+                                        r.*,
+                                        DATE_FORMAT(r.PickUpDate, '%M %e, %Y') AS pick_date,
+                                        DATE_FORMAT(r.DropOffDate, '%M %e, %Y') AS drop_date
+                                    FROM car c
+                                    JOIN rental r ON c.CARID = r.CARID
+                                    WHERE r.CUSTID = ?
+                                    LIMIT 5
+                                ");
+
+                                $stmt->bind_param("s", $custid); 
+                                $stmt->execute();
+                                $result = $stmt->get_result();
+                                    ?>
 
                 <!-- Main Content -->
                 <div class="col-lg-9">
@@ -1016,7 +1126,7 @@
                                     <div class="stat-icon">
                                         <i class="fas fa-calendar-check"></i>
                                     </div>
-                                    <div class="stat-number">03</div>
+                                    <div class="stat-number"><?= $INCOMING ?? 0 ?></div>
                                     <div class="stat-label">Upcoming Orders</div>
                                 </div>
                             </div>
@@ -1036,7 +1146,7 @@
                                     <div class="stat-icon">
                                         <i class="fas fa-calendar-alt"></i>
                                     </div>
-                                    <div class="stat-number">58</div>
+                                    <div class="stat-number"><?= $COMPLETE ?? 0 ?></div>
                                     <div class="stat-label">Total Orders</div>
                                 </div>
                             </div>
@@ -1046,7 +1156,7 @@
                                     <div class="stat-icon">
                                         <i class="fas fa-calendar-times"></i>
                                     </div>
-                                    <div class="stat-number">24</div>
+                                    <div class="stat-number"><?= $Canceled ?? 0 ?></div>
                                     <div class="stat-label">Cancelled Orders</div>
                                 </div>
                             </div>
@@ -1070,205 +1180,209 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        <tr>
-                                            <td class="order-id">#01236</td>
-                                            <td><strong>Jeep Renegade</strong></td>
-                                            <td>New York</td>
-                                            <td>Los Angeles</td>
-                                            <td>March 2, 2023</td>
-                                            <td>March 10, 2023</td>
-                                            <td><span class="status-badge status-completed">Completed</span></td>
+                                        
+                                            <?php
+                                                while($row=$result->fetch_assoc())
+                                                {
+                                            ?>
+                                            <tr>
+                                            <td class="order-id"><?= $row['RENTALID'] ?></td>
+                                            <td><strong><?= $row['CARNAME'] ?></strong></td>
+                                            <td><?= $row['PickUpLocation'] ?></td>
+                                            <td><?= $row['DropOffLocation'] ?></td>
+                                            <td><?= $row['pick_date'] ?></td>
+                                            <td><?= $row['drop_date'] ?></td>
+                                                <?php
+                                                $status = strtolower($row['STATUS']);
+
+                                                if ($status == 'ongoing') {
+                                                    $class = 'status-scheduled';
+                                                } elseif ($status == 'canceled') {
+                                                    $class = 'status-canceled';
+                                                } else {
+                                                    $class = 'status-completed';
+                                                }
+                                            ?>
+                                            <td><span class="status-badge <?= $class ?>"><?= $row['STATUS'] ?></span></td>
                                         </tr>
-                                        <tr>
-                                            <td class="order-id">#01263</td>
-                                            <td><strong>Mini Cooper</strong></td>
-                                            <td>San Francisco</td>
-                                            <td>Chicago</td>
-                                            <td>March 8, 2023</td>
-                                            <td>March 10, 2023</td>
-                                            <td><span class="status-badge status-cancelled">Cancelled</span></td>
-                                        </tr>
-                                        <tr>
-                                            <td class="order-id">#01245</td>
-                                            <td><strong>Ferrari Enzo</strong></td>
-                                            <td>Philadelphia</td>
-                                            <td>Washington</td>
-                                            <td>March 6, 2023</td>
-                                            <td>March 10, 2023</td>
-                                            <td><span class="status-badge status-scheduled">Scheduled</span></td>
-                                        </tr>
-                                        <tr>
-                                            <td class="order-id">#01287</td>
-                                            <td><strong>Hyundai Staria</strong></td>
-                                            <td>Kansas City</td>
-                                            <td>Houston</td>
-                                            <td>March 13, 2023</td>
-                                            <td>March 10, 2023</td>
-                                            <td><span class="status-badge status-completed">Completed</span></td>
-                                        </tr>
-                                        <tr>
-                                            <td class="order-id">#01216</td>
-                                            <td><strong>Toyota Rav 4</strong></td>
-                                            <td>Baltimore</td>
-                                            <td>Sacramento</td>
-                                            <td>March 7, 2023</td>
-                                            <td>March 10, 2023</td>
-                                            <td><span class="status-badge status-scheduled">Scheduled</span></td>
-                                        </tr>
+                                    <?php } $stmt->close(); ?>
                                     </tbody>
                                 </table>
                             </div>
 
                             
                         </div>
+<?php
+$custId=$_SESSION['CUSTID'];
+$favorites_stmt = $connect->prepare("
+    SELECT 
+        c.CARID,
+        c.CARNAME,
+        c.BRAND,
+        c.HORSE_POWER,
+        c.CAR_YEAR,
+        c.daily_price,
+        c.bags,
+        c.Doors,
+        c.Seats,
+        c.car_type,
+        c.color,
+        COUNT(r.RENTALID) as rental_count,
+        
+        (SELECT URL FROM car_photos WHERE CARID = c.CARID LIMIT 1) as car_image
+    FROM rental r
+    JOIN car c ON r.CARID = c.CARID
+    WHERE r.CUSTID = ? 
+        AND r.STATUS != 'Cancelled'
+    GROUP BY c.CARID, c.CARNAME, c.BRAND, c.HORSE_POWER, c.CAR_YEAR, 
+            c.daily_price, c.bags, c.Doors, c.Seats, c.car_type, c.color
+    HAVING rental_count > 0
+    ORDER BY rental_count DESC
+    LIMIT 5
+");
+$favorites_stmt->bind_param("s", $custId);
+$favorites_stmt->execute();
+$result = $favorites_stmt->get_result();
+$favorites_stmt->close();
 
-                        <!-- Favorite Cars -->
-                        <div class="favorites-card fade-in">
-                            <h3 class="card-title">My Favorite Cars</h3>
 
-                            <!-- Favorite 1 -->
-                            <div class="favorite-item">
-                                <div class="car-image">
-                                    <img src="https://images.unsplash.com/photo-1503376780353-7e6692767b70?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80"
-                                        alt="Jeep Renegade">
-                                </div>
 
-                                <div class="car-info">
-                                    <h4 class="car-name">Jeep Renegade</h4>
-                                    <div class="car-specs">
-                                        <div class="spec-item">
-                                            <i class="fas fa-user"></i> 4 Seats
+?>
+                            <!-- Favorite Cars -->
+                            <div class="favorites-card fade-in">
+                                <h3 class="card-title">My Favorite Cars</h3>
+                                                <?php
+                                                while($row= $result->fetch_assoc())
+                                                {
+                                                
+                                                ?>
+                                <!-- Favorite 1 -->
+                                <div class="favorite-item">
+                                    <div class="car-image">
+                                        <img src="../assets/img/Cars/<?= $row['car_image'] ?>"
+                                            alt="<?= $row['CARNAME'] ?>">
+                                    </div>
+
+                                    <div class="car-info">
+                                        <h4 class="car-name"><?= $row['CARNAME'] ?></h4>
+                                        <div class="car-specs">
+                                            <div class="spec-item">
+                                                <i class="fas fa-user"></i> <?= $row['Seats'] ?> Seats
+                                            </div>
+                                            <div class="spec-item">
+                                                <i class="fas fa-suitcase"></i> 2 <?= $row['bags'] ?>
+                                            </div>
+                                            <div class="spec-item">
+                                                <i class="fas fa-door-closed"></i> 4 <?= $row['Doors'] ?>
+                                            </div>
+                                            
                                         </div>
-                                        <div class="spec-item">
-                                            <i class="fas fa-suitcase"></i> 2 bags
-                                        </div>
-                                        <div class="spec-item">
-                                            <i class="fas fa-door-closed"></i> 4 Doors
-                                        </div>
-                                        
+                                    </div>
+
+
+
+                                    <div class="car-price">
+                                        <div class="daily-rate">Daily rate from</div>
+                                        <span class="price">$<?= $row['daily_price'] ?></span>
+                                        <form method="post">
+                                            <input type="hidden" name="name" value="<?=$row['CARNAME'] ?>">
+                                            <input type="hidden" name="price" value="<?=$row['daily_price'] ?>">
+                                            <input type="hidden" name="id" value="<?=$row['CARID'] ?>">
+                                            <input type="hidden" name="bag" value="<?=$row['bags'] ?>">
+                                            <input type="hidden" name="url" value="<?=$row['car_image'] ?>">
+                                            <input type="hidden" name="door" value="<?=$row['Doors'] ?>">
+                                            <input type="hidden" name="seats" value="<?=$row['Seats'] ?>">
+                                        <button type="submit" class="btn-rent" name="rentAgain">Rent Now</button>
+                                                    </form>
                                     </div>
                                 </div>
-
-                                <div class="car-price">
-                                    <div class="daily-rate">Daily rate from</div>
-                                    <span class="price">$265</span>
-                                    <button class="btn-rent">Rent Now</button>
-                                </div>
-                            </div>
-
-                            <!-- Favorite 2 -->
-                            <div class="favorite-item">
-                                <div class="car-image">
-                                    <img src="https://images.unsplash.com/photo-1555215695-3004980ad54e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80"
-                                        alt="BMW M2">
-                                </div>
-
-                                <div class="car-info">
-                                    <h4 class="car-name">BMW M2</h4>
-                                    <div class="car-specs">
-                                        <div class="spec-item">
-                                            <i class="fas fa-user"></i> 2 Seats
-                                        </div>
-                                        <div class="spec-item">
-                                            <i class="fas fa-suitcase"></i> 1 bags
-                                        </div>
-                                        <div class="spec-item">
-                                            <i class="fas fa-door-closed"></i> 2 Doors
-                                        </div>
-                                        
-                                    </div>
-                                </div>
-
-                                <div class="car-price">
-                                    <div class="daily-rate">Daily rate from</div>
-                                    <span class="price">$244</span>
-                                    <button class="btn-rent">Rent Now</button>
-                                </div>
-                            </div>
-
-                            <!-- Favorite 3 -->
-                            <div class="favorite-item">
-                                <div class="car-image">
-                                    <img src="https://images.unsplash.com/photo-1580273916550-e323be2ae537?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80"
-                                        alt="Ferrari Enzo">
-                                </div>
-
-                                <div class="car-info">
-                                    <h4 class="car-name">Ferrari Enzo</h4>
-                                    <div class="car-specs">
-                                        <div class="spec-item">
-                                            <i class="fas fa-user"></i> 2 Seats
-                                        </div>
-                                        <div class="spec-item">
-                                            <i class="fas fa-suitcase"></i> 1 bags
-                                        </div>
-                                        <div class="spec-item">
-                                            <i class="fas fa-door-closed"></i> 2 Doors
-                                        </div>
-                                        
-                                    </div>
-                                </div>
-
-                                <div class="car-price">
-                                    <div class="daily-rate">Daily rate from</div>
-                                    <span class="price">$167</span>
-                                    <button class="btn-rent">Rent Now</button>
-                                </div>
-                            </div>
+                                <?php } ?>
                         </div>
                     </div>
+
+<?php
+$custid=$_SESSION['CUSTID'];
+                            $stmt = $connect->prepare("
+    SELECT u.CUSTNAME, u.EMAIL, u.PHONE, u.ADDRESS
+    FROM customer u
+    WHERE u.CUSTID = ?
+");
+                                $stmt->bind_param("s",$custid);
+                                $stmt->execute();
+                                $result=$stmt->get_result();
+                                if($result->num_rows > 0)
+                                {
+                                $row = $result->fetch_assoc();
+                                $parts=explode(" ",$row['CUSTNAME']);
+                                $firstName = $parts[0] ?? '';
+                                $lastName = $parts[1] ?? '';
+                            }
+
+?>
 
                     <!-- Profile Content -->
                     <div id="profile-section" class="content-section">
                         <div class="profile-card fade-in">
                             <h3 class="card-title">My Profile</h3>
+                            <?php if (isset($_GET['success'])): ?>
+                                <div class="alert alert-success"> 
+                                    <!-- eza heben tfhmo lsar alrt ya3ne mtl tnbeh w alert-sucsess ltsir bl a5dar -->
+                                        Data  updated successfully !!
+                                    </div>
+                            <?php endif; ?>
                             <p class="text-muted mb-4">Update your personal information and preferences</p>
 
-                            <form class="profile-form">
+                            <form  method="POST" class="profile-form">
                                 <div class="row">
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label for="first-name">First Name</label>
-                                            <input type="text" class="form-control" id="first-name" value="haidar">
+                                            <input type="text" class="form-control" name="FN" id="first-name" value="<?= $firstName ?? "Guest" ?>">
                                         </div>
                                     </div>
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label for="last-name">Last Name</label>
-                                            <input type="text" class="form-control" id="last-name" value="habach">
+                                            <input type="text" class="form-control" name="LN" id="last-name"  value="<?= $lastName ?? "unknow" ?>">
                                             </div>  
                                     </div>
                                 </div>
 
                                 <div class="form-group">
                                     <label for="email">Email Address</label>
-                                    <input type="email" class="form-control" id="email" value="haidar@rentaly.com">
+                                    <input type="email" class="form-control" id="email" name="email" value="<?= $row['EMAIL']??"" ?>">
                                 </div>
 
                                 <div class="form-group">
                                     <label for="phone">Phone Number</label>
-                                    <input type="tel" class="form-control" id="phone" value="01 234 567">
+                                    <input type="tel" class="form-control" id="phone" name="phone" value="<?= $row['PHONE'] ?? "" ?>">
                                 </div>
 
                                 <div class="form-group">
                                     <label for="address">Address</label>
-                                    <input type="text" class="form-control" id="address"
-                                        value="123 Main St, New York, NY 10001">
+                                    <input type="text" class="form-control" name="address" id="address"
+                                        value="<?= $row['ADDRESS'] ?? "Ouzaii" ?>">
                                 </div>
 
                                 <div class="row">
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label for="password">New Password</label>
-                                            <input type="password" class="form-control" id="password"
+                                            <input type="password" class="form-control" id="password" name="password"
                                                 placeholder="Enter new password">
                                         </div>
                                     </div>
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label for="confirm-password">Confirm Password</label>
-                                            <input type="password" class="form-control" id="confirm-password"
+                                            <input type="password" class="form-control" id="confirm-password" name="confirmPassword"
                                                 placeholder="Confirm new password">
+                                                <?php
+                                                if(isset($_GET['errorConfirm']))
+                                                {
+                                                    echo "<span style=color:red;font-size:19;>Password not match !</span>";
+                                                }
+                                                ?>
                                         </div>
                                     </div>
                                 </div>
@@ -1276,7 +1390,7 @@
                                 
 
                                 <div class="text-end mt-4">
-                                    <button type="submit" class="btn btn-update">Update Profile</button>
+                                    <button type="submit" name="updateProfile" class="btn btn-update">Update Profile</button>
                                 </div>
                             </form>
                         </div>
@@ -1696,6 +1810,46 @@
             animatedElements.forEach(el => observer.observe(el));
         });
     </script>
+    <!-- hasan -->
+        <script>
+document.addEventListener("DOMContentLoaded", function () {
+
+    const params = new URLSearchParams(window.location.search);
+    // hon azde rj3 l url ba3ed 3alemet l ? ya3ne eza fi error w section .. aw sucsess w section .. 
+    // small example ?section=profile&success=1
+    const section = params.get("section");
+    // jeble value tb3 section sho hwe profile ? jebo llvalue sho m ken  
+
+    if (section) {
+        // shel active 3an kel button lside bar hon mshen m yn3rd shi 
+        document.querySelectorAll(".menu-button").forEach(btn => {
+            btn.classList.remove("active");
+        });
+
+        // hone 5fet kel section lmybyn wla whde 
+        document.querySelectorAll(".content-section").forEach(sec => {
+            sec.classList.remove("active");
+        });
+
+        // hone bde hded aya section bde ? le htt -section ? ftred rj3le profile ana bde ahke m3 profile -section concate 3de 
+        const targetSection = document.getElementById(section + "-section");
+        // hone ftesh aal osom 
+        const targetButton = document.querySelector(`[data-section="${section}"]`);
+        // hone ftesh aal zer tb3 side bar w hot tnen active 
+        if (targetSection && targetButton) {
+            targetSection.classList.add("active");
+            targetButton.classList.add("active");
+        }
+    }
+});
+</script>
+<!-- here select the class then remove the alert after 3 sec  -->
+<script>
+setTimeout(() => {
+    const alert = document.querySelector(".alert-success");
+    if (alert) alert.remove();
+}, 3000);
+</script>
 </body>
 
 </html>
