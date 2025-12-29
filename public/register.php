@@ -2,6 +2,8 @@
 <html lang="en">
 <?php
 include '../includes/db.php';
+require_once "../includes/log.php";
+
 session_start();
  
 // Retrieve errors from session if they exist
@@ -151,6 +153,8 @@ if (isset($_POST["customer"]) && empty($error)) {
 
     $stmt->execute();
     $stmt->close();
+     writeLog("register.php", "New user registered: {$email}");
+
     header("Location: login.php");
     exit();
 }
@@ -726,3 +730,4 @@ if (isset($_POST["customer"]) && empty($error)) {
     </script>
 </body>
 </html>
+
