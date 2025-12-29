@@ -2,12 +2,78 @@
 <?php
 session_start();
 include '../includes/db.php';
+
+if($_SERVER['REQUEST_METHOD']=="POST" && isset($_POST['signout']))
+{
+    unset($_SESSION['CUSTID']);
+}
 if(!isset($_SESSION['CUSTID']))
 {
     header("Location:login.php");
 }
 ?>
 <?php
+//last update 29/12 
+if($_SERVER['REQUEST_METHOD']=="POST" && (isset($_POST['RentAgain']) || isset($_POST['Rebook'])))
+{
+$photo = $_POST['photo'];
+$name = $_POST['carname'];
+$price=$_POST['price'];
+$carid=$_POST['carid'];
+$custid=$_POST['custid'];
+
+header("Location:booking-form.php?" . http_build_query([
+    'name' => $name,
+    'price' => $price,
+    'CARID' => $carid,
+    'image' => $photo
+]));
+exit;
+}
+if($_SERVER['REQUEST_METHOD']=="POST" && isset($_POST['Cancel']))
+{
+    $rentid = $_POST['rentid'];
+    $carid=$_POST['carid'];
+    $stmt=$connect->prepare("UPDATE rental set STATUS = 'cancelled' where RENTALID = ? and CARID = ? and CUSTID = ? ");
+    $stmt->bind_param("sss",$rentid,$carid,$_SESSION['CUSTID']);
+    $stmt->execute();
+    $stmt->close();
+    header("Location: myAccountCustomer.php?section=orders&cancel_success=1");
+    exit;
+}
+// hone ll my orders..
+$stmt = $connect->prepare("
+    SELECT 
+        R.RENTALID , C.CARNAME , R.STATUS , R.PickUpLocation , R.DropOffLocation , P.URL , C.daily_price , C.CARID
+        ,DATEDIFF(R.DROPOFFDATE,R.PICKUPDATE) as diff,
+        DATE_FORMAT(R.PICKUPDATE, '%M %e, %Y') AS pick_date,
+        DATE_FORMAT(R.DROPOFFDATE, '%M %e, %Y') AS drop_date
+        FROM rental as R , car as C , car_photos as P
+        where R.CARID = C.CARID AND P.CARID = R.CARID
+        AND R.CUSTID = ? 
+");
+$stmt->bind_param("s", $_SESSION['CUSTID']);
+$stmt->execute();
+$result = $stmt->get_result();
+$delivered = [];
+$processing = [];
+$cancelled = [];
+
+while ($row = $result->fetch_assoc()) {
+    if (strtolower($row['STATUS']) === 'completed') {
+        $delivered[] = $row;
+    } elseif (strtolower($row['STATUS']) === 'ongoing') {
+        $processing[] = $row;
+    } else if(strtolower($row['STATUS']) === 'cancelled'){
+        $cancelled[] = $row;
+    }
+}
+                            
+$stmt->close();
+
+
+
+/////////////////////
 
 if($_SERVER['REQUEST_METHOD']=="POST" && isset($_POST['rentAgain']))
 {
@@ -1197,8 +1263,8 @@ if ($_SERVER['REQUEST_METHOD'] == "POST" && isset($_POST['updateProfile'])) {
 
                                                 if ($status == 'ongoing') {
                                                     $class = 'status-scheduled';
-                                                } elseif ($status == 'canceled') {
-                                                    $class = 'status-canceled';
+                                                } elseif ($status == 'cancelled') {
+                                                    $class = 'status-cancelled';
                                                 } else {
                                                     $class = 'status-completed';
                                                 }
@@ -1408,6 +1474,15 @@ $custid=$_SESSION['CUSTID'];
                                     <button class="filter-btn" data-filter="cancelled">Cancelled</button>
                                 </div>
                             </div>
+                            <!-- code s8er bootstrap llmaseg hasan!! -->
+                                    <?php if (isset($_GET['cancel_success'])): ?>
+                                    <div class="alert alert-success alert-dismissible fade show">
+                                        Rental Order  cancelled successfully!
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                    </div>
+                                    <?php endif; ?>
+                                    
+
                             <p class="text-muted mb-4">View and manage all your rental orders</p>
 
                             <!-- Completed Orders -->
@@ -1419,92 +1494,50 @@ $custid=$_SESSION['CUSTID'];
                                         </div>
                                         <span>Completed Orders</span>
                                     </div>
-                                    <div class="order-count completed-count">15 Orders</div>
+                                    <div class="order-count completed-count"><?= count($delivered)??0 ?> Orders</div>
                                 </div>
+                                
                                 <div class="category-body">
+                                    <?php
+                                
+                                foreach($delivered as $d)
+                                {
+                                ?>
                                     <!-- Order Item 1 -->
                                     <div class="order-item">
                                         <div class="car-image-small">
-                                            <img src="https://images.unsplash.com/photo-1503376780353-7e6692767b70?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80"
+                                            <img src="../assets/img/Cars/<?= $d['URL'] ?>"
                                                 alt="Jeep Renegade">
                                         </div>
                                         <div class="order-info">
-                                            <div class="order-car-name">Jeep Renegade</div>
+                                            <div class="order-car-name"><?= $d['CARNAME'] ?></div>
                                             <div class="order-details">
-                                                <span class="order-id">#01236</span>
-                                                <span>New York → Los Angeles</span>
-                                                <span>March 2 - March 10, 2023</span>
+                                                <span class="order-id">#<?= $d['RENTALID'] ?></span>
+                                                <span><?= $d['PickUpLocation'] ?> → <?= $d['DropOffLocation'] ?></span>
+                                                <span><?= $d['pick_date'] ?> - <?= $d['drop_date'] ?></span>
                                                 <span class="text-success"><i
                                                         class="fas fa-check-circle me-1"></i>Successfully
                                                     completed</span>
                                             </div>
                                         </div>
                                         <div class="order-dates">
-                                            <div class="order-date">March 2, 2023</div>
-                                            <div class="order-date">March 10, 2023</div>
-                                            <div class="order-location">14 days</div>
+                                            <div class="order-date"><?= $d['pick_date'] ?></div>
+                                            <div class="order-date"><?= $d['drop_date'] ?></div>
+                                            <div class="order-location"><?= $d['diff'] ?> days</div>
                                         </div>
+                                        <form method="post">
                                         <div class="order-actions">
-                                            
-                                            <button class="btn-action btn-modify">Rent Again</button>
+                                            <input type="hidden" name="carname" value="<?= $d['CARNAME'] ?>">
+                                            <input type="hidden" name="photo" value="<?= $d['URL'] ?>">
+                                            <input type="hidden" name="price" value="<?= $d['daily_price'] ?>">
+                                            <input type="hidden" name="carid" value="<?= $d['CARID'] ?>">
+                                            <input type="hidden" name="custid" value="<?= $_SESSION['CUSTID'] ?>">
+                                            <button type="submit" name="RentAgain" class="btn-action btn-modify">Rent Again</button>
                                         </div>
+                                        </form>
                                     </div>
 
-                                    <!-- Order Item 2 -->
-                                    <div class="order-item">
-                                        <div class="car-image-small">
-                                            <img src="https://images.unsplash.com/photo-1555215695-3004980ad54e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80"
-                                                alt="BMW M2">
-                                        </div>
-                                        <div class="order-info">
-                                            <div class="order-car-name">BMW M2</div>
-                                            <div class="order-details">
-                                                <span class="order-id">#01198</span>
-                                                <span>Miami → Atlanta</span>
-                                                <span>March 1 - March 5, 2023</span>
-                                                <span class="text-success"><i
-                                                        class="fas fa-check-circle me-1"></i>Successfully
-                                                    completed</span>
-                                            </div>
-                                        </div>
-                                        <div class="order-dates">
-                                            <div class="order-date">March 1, 2023</div>
-                                            <div class="order-date">March 5, 2023</div>
-                                            <div class="order-location">5 days</div>
-                                        </div>
-                                        <div class="order-actions">
-                                            
-                                            <button class="btn-action btn-modify">Rent Again</button>
-                                        </div>
-                                    </div>
-
-                                    <!-- Order Item 3 -->
-                                    <div class="order-item">
-                                        <div class="car-image-small">
-                                            <img src="https://images.unsplash.com/photo-1580273916550-e323be2ae537?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80"
-                                                alt="Ferrari Enzo">
-                                        </div>
-                                        <div class="order-info">
-                                            <div class="order-car-name">Ferrari Enzo</div>
-                                            <div class="order-details">
-                                                <span class="order-id">#01175</span>
-                                                <span>Seattle → Portland</span>
-                                                <span>Feb 25 - Feb 28, 2023</span>
-                                                <span class="text-success"><i
-                                                        class="fas fa-check-circle me-1"></i>Successfully
-                                                    completed</span>
-                                            </div>
-                                        </div>
-                                        <div class="order-dates">
-                                            <div class="order-date">Feb 25, 2023</div>
-                                            <div class="order-date">Feb 28, 2023</div>
-                                            <div class="order-location">4 days</div>
-                                        </div>
-                                        <div class="order-actions">
-                                            
-                                            <button class="btn-action btn-modify">Rent Again</button>
-                                        </div>
-                                    </div>
+                                <?php } ?>
                                 </div>
                             </div>
 
@@ -1517,90 +1550,50 @@ $custid=$_SESSION['CUSTID'];
                                         </div>
                                         <span>Scheduled Orders</span>
                                     </div>
-                                    <div class="order-count scheduled-count">3 Orders</div>
+                                    <div class="order-count scheduled-count"><?= count($processing)??0 ?> Orders</div>
                                 </div>
                                 <div class="category-body">
+                                    <?php
+                                    
+                                    foreach($processing as $d)
+                                    {
+                                    ?>
                                     <!-- Order Item 1 -->
                                     <div class="order-item">
                                         <div class="car-image-small">
-                                            <img src="https://images.unsplash.com/photo-1549399542-7e3f8b79c341?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80"
-                                                alt="Ferrari Enzo">
+                                            <img src="../assets/img/Cars/<?= $d['URL'] ?>"
+                                                alt="<?= $d['CARNAME'] ?>">
                                         </div>
                                         <div class="order-info">
-                                            <div class="order-car-name">Ferrari Enzo</div>
+                                            <div class="order-car-name"><?= $d['CARNAME'] ?></div>
                                             <div class="order-details">
-                                                <span class="order-id">#01245</span>
-                                                <span>Philadelphia → Washington</span>
-                                                <span>March 6 - March 10, 2023</span>
+                                                <span class="order-id">#<?= $d['RENTALID'] ?></span>
+                                                <span><?= $d['PickUpLocation'] ?> → <?= $d['DropOffLocation'] ?></span>
+                                                <span><?= $d['pick_date'] ?> - <?= $d['drop_date'] ?></span>
                                                 <span class="text-warning"><i class="fas fa-clock me-1"></i>Upcoming
                                                     rental</span>
                                             </div>
                                         </div>
                                         <div class="order-dates">
-                                            <div class="order-date">March 6, 2023</div>
-                                            <div class="order-date">March 10, 2023</div>
-                                            <div class="order-location">5 days</div>
+                                            <div class="order-date"><?= $d['pick_date'] ?></div>
+                                            <div class="order-date"><?= $d['drop_date'] ?></div>
+                                            <div class="order-location"><?= $d['diff'] ?> days</div>
                                         </div>
-                                        <div class="order-actions">
-                                            
-                                            
-                                            <button class="btn-action btn-cancel">Cancel</button>
+                                        <form method="post">
+                                            <div class="order-actions">
+                                            <input type="hidden" name="carname" value="<?= $d['CARNAME'] ?>">
+                                            <input type="hidden" name="photo" value="<?= $d['URL'] ?>">
+                                            <input type="hidden" name="rentid" value="<?= $d['RENTALID'] ?>">
+                                            <input type="hidden" name="price" value="<?= $d['daily_price'] ?>">
+                                            <input type="hidden" name="carid" value="<?= $d['CARID'] ?>">
+                                            <input type="hidden" name="custid" value="<?= $_SESSION['CUSTID'] ?>">
+                                            <button type="submit" name="Cancel" class="btn-action btn-cancel">Cancel</button>
                                         </div>
-                                    </div>
+                                        </form>
 
-                                    <!-- Order Item 2 -->
-                                    <div class="order-item">
-                                        <div class="car-image-small">
-                                            <img src="https://images.unsplash.com/photo-1553440569-bcc63803a83d?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80"
-                                                alt="Toyota Rav 4">
-                                        </div>
-                                        <div class="order-info">
-                                            <div class="order-car-name">Toyota Rav 4</div>
-                                            <div class="order-details">
-                                                <span class="order-id">#01216</span>
-                                                <span>Baltimore → Sacramento</span>
-                                                <span>March 7 - March 10, 2023</span>
-                                                <span class="text-warning"><i class="fas fa-clock me-1"></i>Upcoming
-                                                    rental</span>
-                                            </div>
-                                        </div>
-                                        <div class="order-dates">
-                                            <div class="order-date">March 7, 2023</div>
-                                            <div class="order-date">March 10, 2023</div>
-                                            <div class="order-location">4 days</div>
-                                        </div>
-                                        <div class="order-actions">
-                                            
-                                            <button class="btn-action btn-cancel">Cancel</button>
-                                        </div>
                                     </div>
+                                    <?php } ?>
 
-                                    <!-- Order Item 3 -->
-                                    <div class="order-item">
-                                        <div class="car-image-small">
-                                            <img src="https://images.unsplash.com/photo-1580273916550-e323be2ae537?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80"
-                                                alt="Ferrari Enzo">
-                                        </div>
-                                        <div class="order-info">
-                                            <div class="order-car-name">Ferrari Enzo</div>
-                                            <div class="order-details">
-                                                <span class="order-id">#01299</span>
-                                                <span>Los Angeles → San Diego</span>
-                                                <span>March 15 - March 20, 2023</span>
-                                                <span class="text-warning"><i class="fas fa-clock me-1"></i>Upcoming
-                                                    rental</span>
-                                            </div>
-                                        </div>
-                                        <div class="order-dates">
-                                            <div class="order-date">March 15, 2023</div>
-                                            <div class="order-date">March 20, 2023</div>
-                                            <div class="order-location">6 days</div>
-                                        </div>
-                                        <div class="order-actions">
-                                            
-                                            <button class="btn-action btn-cancel">Cancel</button>
-                                        </div>
-                                    </div>
                                 </div>
                             </div>
 
@@ -1613,63 +1606,48 @@ $custid=$_SESSION['CUSTID'];
                                         </div>
                                         <span>Cancelled Orders</span>
                                     </div>
-                                    <div class="order-count cancelled-count">24 Orders</div>
+                                    <div class="order-count cancelled-count"><?= count($cancelled)??0 ?> Orders</div>
                                 </div>
                                 <div class="category-body">
                                     <!-- Order Item 1 -->
+                                    <?php
+                                    foreach($cancelled as $d)
+                                    
+                                        {
+                                    
+                                    ?>
                                     <div class="order-item">
                                         <div class="car-image-small">
-                                            <img src="https://images.unsplash.com/photo-1542282088-fe8426682b8f?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80"
-                                                alt="Mini Cooper">
+                                            <img src="../assets/img/Cars/<?= $d['URL'] ?>"
+                                                alt="<?= $d['CARNAME'] ?>">
                                         </div>
                                         <div class="order-info">
-                                            <div class="order-car-name">Mini Cooper</div>
+                                            <div class="order-car-name"><?= $d['CARNAME'] ?>"</div>
                                             <div class="order-details">
-                                                <span class="order-id">#01263</span>
-                                                <span>San Francisco → Chicago</span>
-                                                <span>March 8 - March 10, 2023</span>
+                                                <span class="order-id">#<?= $d['RENTALID'] ?>"</span>
+                                                <span><?= $d['PickUpLocation'] ?> → <?= $d['DropOffLocation'] ?></span>
+                                                <span><?= $d['pick_date'] ?> - <?= $d['drop_date'] ?></span>
                                                 <span class="text-danger"><i
                                                         class="fas fa-times-circle me-1"></i>Cancelled by user</span>
                                             </div>
                                         </div>
                                         <div class="order-dates">
-                                            <div class="order-date">March 8, 2023</div>
-                                            <div class="order-date">March 10, 2023</div>
-                                            <div class="order-location">3 days</div>
+                                            <div class="order-date"><?= $d['pick_date'] ?></div>
+                                            <div class="order-date"><?= $d['drop_date'] ?></div>
+                                            <div class="order-location"><?= $d['diff'] ?> days</div>
                                         </div>
+                                        <form method="post">
                                         <div class="order-actions">
-                        
-                                            <button class="btn-action btn-modify">Re-book</button>
+                                            <input type="hidden" name="carname" value="<?= $d['CARNAME'] ?>">
+                                            <input type="hidden" name="photo" value="<?= $d['URL'] ?>">
+                                            <input type="hidden" name="price" value="<?= $d['daily_price'] ?>">
+                                            <input type="hidden" name="carid" value="<?= $d['CARID'] ?>">
+                                            <input type="hidden" name="custid" value="<?= $_SESSION['CUSTID'] ?>">
+                                            <button type="submit" name="Rebook" class="btn-action btn-modify">Re-book</button>
                                         </div>
+                                        </form>
                                     </div>
-
-                                    <!-- Order Item 2 -->
-                                    <div class="order-item">
-                                        <div class="car-image-small">
-                                            <img src="https://images.unsplash.com/photo-1549399542-7e3f8b79c341?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80"
-                                                alt="Ferrari Enzo">
-                                        </div>
-                                        <div class="order-info">
-                                            <div class="order-car-name">Ferrari Enzo</div>
-                                            <div class="order-details">
-                                                <span class="order-id">#01189</span>
-                                                <span>Chicago → Detroit</span>
-                                                <span>Feb 20 - Feb 25, 2023</span>
-                                                <span class="text-danger"><i
-                                                        class="fas fa-times-circle me-1"></i>Cancelled by system</span>
-                                            </div>
-                                        </div>
-                                        <div class="order-dates">
-                                            <div class="order-date">Feb 20, 2023</div>
-                                            <div class="order-date">Feb 25, 2023</div>
-                                            <div class="order-location">6 days</div>
-                                        </div>
-                                        <div class="order-actions">
-                                            
-                                            <button class="btn-action btn-modify">Re-book</button>
-                                        </div>
-                                    </div>
-
+                                            <?php } ?>
                                     <!-- Empty State for other categories (hidden by default) -->
                                     <div class="empty-orders" style="display: none;">
                                         <div class="empty-icon">
@@ -1692,11 +1670,11 @@ $custid=$_SESSION['CUSTID'];
                             <h3 class="card-title">Sign Out</h3>
                             <p class="signout-message">Are you sure you want to sign out of your account?</p>
                             <p class="text-muted mb-4">You will need to sign in again to access your dashboard.</p>
-
+                                    <form method="post">
                             <div class="d-flex justify-content-center gap-3">
-                                <button class="btn btn-update" id="cancel-signout">Cancel</button>
-                                <button class="btn btn-confirm-signout">Sign Out</button>
+                                <button type="submit" name="signout" class="btn btn-confirm-signout">Sign Out</button>
                             </div>
+                            </form>
                         </div>
                     </div>
                 </div>
