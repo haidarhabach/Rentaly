@@ -2,9 +2,10 @@
 <?php
 session_start();
 include '../includes/db.php';
-
+require_once "../includes/log.php";
 if($_SERVER['REQUEST_METHOD']=="POST" && isset($_POST['signout']))
 {
+    writeLog("myAccountCustomer.php", "Customer {$_SESSION['CUSTID']} logged out");
     unset($_SESSION['CUSTID']);
 }
 if(!isset($_SESSION['CUSTID']))
@@ -13,14 +14,18 @@ if(!isset($_SESSION['CUSTID']))
 }
 ?>
 <?php
+
 //last update 29/12 
 if($_SERVER['REQUEST_METHOD']=="POST" && (isset($_POST['RentAgain']) || isset($_POST['Rebook'])))
 {
+    
 $photo = $_POST['photo'];
 $name = $_POST['carname'];
 $price=$_POST['price'];
 $carid=$_POST['carid'];
 $custid=$_POST['custid'];
+
+    writeLog("myAccountCustomer.php", "Customer {$custid} rebooked car {$carid}");
 
 header("Location:booking-form.php?" . http_build_query([
     'name' => $name,
@@ -38,6 +43,7 @@ if($_SERVER['REQUEST_METHOD']=="POST" && isset($_POST['Cancel']))
     $stmt->bind_param("sss",$rentid,$carid,$_SESSION['CUSTID']);
     $stmt->execute();
     $stmt->close();
+    writeLog("myAccountCustomer.php", "Customer {$_SESSION['CUSTID']} cancel car {$carid} ");
     header("Location: myAccountCustomer.php?section=orders&cancel_success=1");
     exit;
 }
@@ -77,6 +83,7 @@ $stmt->close();
 
 if($_SERVER['REQUEST_METHOD']=="POST" && isset($_POST['rentAgain']))
 {
+    
     $name = $_POST['name'];
     $price = $_POST['price'];
     $id = $_POST['id'];
@@ -84,7 +91,8 @@ if($_SERVER['REQUEST_METHOD']=="POST" && isset($_POST['rentAgain']))
     $url = $_POST['url'];
     $door = $_POST['door'];
     $seat = $_POST['seats'];
-
+    writeLog("myAccountCustomer.php", "Customer {$_SESSION['CUSTID']} rent again $name");
+    
     header("Location:booking-form.php?" . http_build_query([
     'name' => $name,
     'price' => $price,
@@ -102,6 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] == "POST" && isset($_POST['updateProfile'])) {
     $password = trim($_POST['password']);
     $confirm  = trim($_POST['confirmPassword']);
     $userID = $_SESSION['CUSTID'];
+    writeLog("myAccountCustomer.php", "Customer {$_SESSION['CUSTID']} update their profile ");
 
     if (empty($password) && empty($confirm)) {
         
