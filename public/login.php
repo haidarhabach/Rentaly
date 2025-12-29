@@ -88,7 +88,8 @@ $stmet->execute();
 $result = $stmet->get_result();
 
 if ($row = $result->fetch_assoc()) {
-    $_SESSION["EID"]   = $row["e"]; 
+    // zbta kent EID
+    $_SESSION["employee_id"]   = $row["e"]; 
 
 }
 //
@@ -384,4 +385,5 @@ if ($row = $result->fetch_assoc()) {
     </script>
 </body>
 </html>
+
 
