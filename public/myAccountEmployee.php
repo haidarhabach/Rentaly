@@ -1,6 +1,8 @@
 <?php
 session_start();
 include("../includes/db.php");
+// require_once "../includes/log.php";
+// use after eash operation this function     writeLog("login.php", "User {$email} logged in successfully");
 
 // Check if logged in 
 if (!isset($_SESSION['employee_id'])) {
@@ -1729,3 +1731,4 @@ if (isset($_SESSION['error'])) {
     </script>
 </body>
 </html>
+
