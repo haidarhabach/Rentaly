@@ -1,6 +1,7 @@
 <html>
 <?php
 session_start();
+require_once "../includes/log.php";
 include '../includes/db.php';
 if (!isset($_SESSION["CUSTID"])) {
     header("Location: login.php");
@@ -870,10 +871,13 @@ $finalPrice = (int) $diff * $_GET["price"];
         $stmt->execute();
         $stmt->prepare("call UpdateCarStatus()");
         $stmt->execute();
+                writeLog("booking-form.php", "Booking for car $carId for customer $custId confirmed ");
 
         echo "<script>alert('THE RENTAL HAS BEEN SUCCESSFULY YOU NEED TO PAY $finalPrice$');</script>";
 
     } else {
+                writeLog("booking-form.php", "Booking for car $carId blocked since the car not available  ");
+
         echo "<script>alert('THE CAR IS NOT AVAILABLE NOW');</script>";
     }
 }
@@ -955,3 +959,4 @@ $finalPrice = (int) $diff * $_GET["price"];
     </a>
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+
