@@ -1,24 +1,411 @@
+<?php
+session_start();
+include '../includes/db.php'; // Database connection file
+
+// Check if employee is logged in
+if (!isset($_SESSION["EID"])) {
+    header('Location: login.php');
+    exit();
+}
+
+$employee_id = $_SESSION["EID"];
+
+// Get employee information
+$stmt = $connect->prepare("SELECT * FROM employee WHERE employee_id = ?");
+$stmt->bind_param("i", $employee_id);
+$stmt->execute();
+$employee_result = $stmt->get_result();
+$employee = $employee_result->fetch_assoc();
+$stmt->close();
+
+// Check if employee exists
+if (!$employee) {
+    session_destroy();
+    header('Location: login.php');
+    exit();
+}
+
+// Get statistics for dashboard
+$stats = [
+    'total_bookings' => 0,
+    'pending_bookings' => 0,
+    'confirmed_bookings' => 0,
+    'cancelled_bookings' => 0,
+    'total_rooms' => 0,
+    'available_rooms' => 0,
+    'occupied_rooms' => 0
+];
+
+// Total bookings
+$stmt = $connect->prepare("SELECT COUNT(*) as count FROM reservation");
+$stmt->execute();
+$result = $stmt->get_result();
+$stats['total_bookings'] = $result->fetch_assoc()['count'] ?? 0;
+$stmt->close();
+
+// Pending bookings (Confirmed but not paid)
+$stmt = $connect->prepare("SELECT COUNT(*) as count FROM reservation WHERE RESV_STATUS = 'Confirmed'");
+$stmt->execute();
+$result = $stmt->get_result();
+$stats['pending_bookings'] = $result->fetch_assoc()['count'] ?? 0;
+$stmt->close();
+
+// Confirmed and paid bookings
+$stmt = $connect->prepare("SELECT COUNT(*) as count FROM reservation WHERE RESV_STATUS = 'Completed'");
+$stmt->execute();
+$result = $stmt->get_result();
+$stats['confirmed_bookings'] = $result->fetch_assoc()['count'] ?? 0;
+$stmt->close();
+
+// Cancelled bookings
+$stmt = $connect->prepare("SELECT COUNT(*) as count FROM reservation WHERE RESV_STATUS = 'Cancelled'");
+$stmt->execute();
+$result = $stmt->get_result();
+$stats['cancelled_bookings'] = $result->fetch_assoc()['count'] ?? 0;
+$stmt->close();
+
+// Total rooms
+$stmt = $connect->prepare("SELECT COUNT(*) as count FROM room");
+$stmt->execute();
+$result = $stmt->get_result();
+$stats['total_rooms'] = $result->fetch_assoc()['count'] ?? 0;
+$stmt->close();
+
+// Available rooms
+$stmt = $connect->prepare("SELECT COUNT(*) as count FROM room WHERE STATUS = 'available'");
+$stmt->execute();
+$result = $stmt->get_result();
+$stats['available_rooms'] = $result->fetch_assoc()['count'] ?? 0;
+$stmt->close();
+
+// Occupied rooms (reserved)
+$stmt = $connect->prepare("SELECT COUNT(*) as count FROM room WHERE STATUS = 'Reserved'");
+$stmt->execute();
+$result = $stmt->get_result();
+$stats['occupied_rooms'] = $result->fetch_assoc()['count'] ?? 0;
+$stmt->close();
+
+// Get recent pending bookings for dashboard
+$recent_pending_bookings_stmt = $connect->prepare("
+    SELECT 
+        r.RESERVATIONID,
+        r.CKECKIN,
+        r.CHECKOUT,
+        r.NB_GUEST,
+        r.RESV_STATUS,
+        r.ROOMID,
+        g.FULLNAME as guest_name,
+        g.EMAIL as guest_email,
+        g.PHONE as guest_phone,
+        rm.ROOM_NUMBER,
+        rt.TYPENAME as room_type,
+        rm.PRICE_PER_NIGHT,
+        DATEDIFF(r.CHECKOUT, r.CKECKIN) as nights,
+        (rm.PRICE_PER_NIGHT * DATEDIFF(r.CHECKOUT, r.CKECKIN)) as total_amount
+    FROM reservation r
+    JOIN guest g ON r.GUESTID = g.GUESTID
+    JOIN room rm ON r.ROOMID = rm.ROOMID
+    JOIN room_type rt ON rm.ROOMTYPEID = rt.ROOMTYPEID
+    WHERE r.RESV_STATUS = 'Confirmed'
+    ORDER BY r.CKECKIN ASC
+    LIMIT 5
+");
+$recent_pending_bookings_stmt->execute();
+$recent_pending_bookings_result = $recent_pending_bookings_stmt->get_result();
+$recent_pending_bookings_stmt->close();
+
+// Get all bookings for management page
+$all_bookings_stmt = $connect->prepare("
+    SELECT 
+        r.RESERVATIONID,
+        r.CKECKIN,
+        r.CHECKOUT,
+        r.NB_GUEST,
+        r.RESV_STATUS,
+        r.ROOMID,
+        g.GUESTID,
+        g.FULLNAME as guest_name,
+        g.EMAIL as guest_email,
+        g.PHONE as guest_phone,
+        rm.ROOM_NUMBER,
+        rt.TYPENAME as room_type,
+        rt.MAXOCCUPANCY,
+        rt.DESCRIPTION,
+        rt.bed,
+        rt.toillet,
+        rm.PRICE_PER_NIGHT,
+        DATEDIFF(r.CHECKOUT, r.CKECKIN) as nights,
+        (rm.PRICE_PER_NIGHT * DATEDIFF(r.CHECKOUT, r.CKECKIN)) as total_amount,
+        p.STATUS_PAYMENT,
+        p.AMOUNT,
+        p.PAYMENTMETHOD,
+        pu.URL as room_image
+    FROM reservation r
+    JOIN guest g ON r.GUESTID = g.GUESTID
+    JOIN room rm ON r.ROOMID = rm.ROOMID
+    JOIN room_type rt ON rm.ROOMTYPEID = rt.ROOMTYPEID
+    LEFT JOIN payment p ON r.RESERVATIONID = p.RESERVATIONID
+    LEFT JOIN photo_url pu ON r.ROOMID = pu.Room_ID
+    ORDER BY 
+        CASE WHEN r.RESV_STATUS = 'Confirmed' THEN 1
+             WHEN r.RESV_STATUS = 'Completed' THEN 2
+             WHEN r.RESV_STATUS = 'Cancelled' THEN 3
+             ELSE 4
+        END,
+        r.CKECKIN DESC
+");
+$all_bookings_stmt->execute();
+$all_bookings_result = $all_bookings_stmt->get_result();
+$all_bookings_stmt->close();
+
+// Get all rooms for management
+$rooms_stmt = $connect->prepare("
+    SELECT 
+        rm.ROOMID,
+        rm.ROOM_NUMBER,
+        rm.STATUS,
+        rm.PRICE_PER_NIGHT,
+        rt.TYPENAME,
+        rt.MAXOCCUPANCY,
+        rt.DESCRIPTION,
+        rt.bed,
+        rt.toillet,
+        pu.URL as room_image
+    FROM room rm
+    JOIN room_type rt ON rm.ROOMTYPEID = rt.ROOMTYPEID
+    LEFT JOIN photo_url pu ON rm.ROOMID = pu.Room_ID
+    ORDER BY rm.ROOM_NUMBER ASC
+");
+$rooms_stmt->execute();
+$rooms_result = $rooms_stmt->get_result();
+$rooms_stmt->close();
+
+// Get room types for adding new rooms
+$room_types_stmt = $connect->prepare("SELECT * FROM room_type ORDER BY TYPENAME");
+$room_types_stmt->execute();
+$room_types_result = $room_types_stmt->get_result();
+$room_types_stmt->close();
+
+// Handle booking approval
+if (isset($_GET['approve_booking'])) {
+    $reservation_id = $_GET['approve_booking'];
+    
+    // Update reservation status
+    $stmt = $connect->prepare("UPDATE reservation SET RESV_STATUS = 'Completed' WHERE RESERVATIONID = ?");
+    $stmt->bind_param("i", $reservation_id);
+    
+    if ($stmt->execute()) {
+        $success_message = "Booking confirmed successfully!";
+        
+        // Update payment status if exists
+        $payment_stmt = $connect->prepare("UPDATE payment SET STATUS_PAYMENT = 'Completed' WHERE RESERVATIONID = ?");
+        $payment_stmt->bind_param("i", $reservation_id);
+        $payment_stmt->execute();
+        $payment_stmt->close();
+        
+        // Refresh statistics
+        $stats['pending_bookings']--;
+        $stats['confirmed_bookings']++;
+    } else {
+        $error_message = "Error confirming booking: " . $stmt->error;
+    }
+    $stmt->close();
+}
+
+// Handle booking cancellation
+if (isset($_GET['cancel_booking'])) {
+    $reservation_id = $_GET['cancel_booking'];
+    
+    // Get room ID before cancelling
+    $room_stmt = $connect->prepare("SELECT ROOMID FROM reservation WHERE RESERVATIONID = ?");
+    $room_stmt->bind_param("i", $reservation_id);
+    $room_stmt->execute();
+    $room_result = $room_stmt->get_result();
+    $booking = $room_result->fetch_assoc();
+    $room_stmt->close();
+    
+    // Start transaction
+    $connect->begin_transaction();
+    
+    try {
+        // Update reservation status
+        $stmt = $connect->prepare("UPDATE reservation SET RESV_STATUS = 'Cancelled' WHERE RESERVATIONID = ?");
+        $stmt->bind_param("i", $reservation_id);
+        $stmt->execute();
+        $stmt->close();
+        
+        // Update room status back to available
+        $room_update_stmt = $connect->prepare("UPDATE room SET STATUS = 'available' WHERE ROOMID = ?");
+        $room_update_stmt->bind_param("i", $booking['ROOMID']);
+        $room_update_stmt->execute();
+        $room_update_stmt->close();
+        
+        // Update payment status if exists
+        $payment_stmt = $connect->prepare("UPDATE payment SET STATUS_PAYMENT = 'Refunded' WHERE RESERVATIONID = ?");
+        $payment_stmt->bind_param("i", $reservation_id);
+        $payment_stmt->execute();
+        $payment_stmt->close();
+        
+        // Commit transaction
+        $connect->commit();
+        
+        $success_message = "Booking cancelled successfully!";
+        
+        // Refresh statistics
+        $stats['pending_bookings']--;
+        $stats['cancelled_bookings']++;
+        $stats['occupied_rooms']--;
+        $stats['available_rooms']++;
+        
+    } catch (Exception $e) {
+        $connect->rollback();
+        $error_message = "Error cancelling booking: " . $e->getMessage();
+    }
+}
+
+// Handle room status update
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_room_status'])) {
+    $room_id = $_POST['room_id'];
+    $status = $_POST['status'];
+    
+    $stmt = $connect->prepare("UPDATE room SET STATUS = ? WHERE ROOMID = ?");
+    $stmt->bind_param("si", $status, $room_id);
+    
+    if ($stmt->execute()) {
+        $success_message = "Room status updated successfully!";
+        
+        // Refresh room statistics
+        $stats['available_rooms'] = 0;
+        $stats['occupied_rooms'] = 0;
+        
+        $count_stmt = $connect->prepare("SELECT STATUS, COUNT(*) as count FROM room GROUP BY STATUS");
+        $count_stmt->execute();
+        $count_result = $count_stmt->get_result();
+        while ($row = $count_result->fetch_assoc()) {
+            if ($row['STATUS'] == 'available') {
+                $stats['available_rooms'] = $row['count'];
+            } elseif ($row['STATUS'] == 'Reserved') {
+                $stats['occupied_rooms'] = $row['count'];
+            }
+        }
+        $count_stmt->close();
+    } else {
+        $error_message = "Error updating room status: " . $stmt->error;
+    }
+    $stmt->close();
+}
+
+// Handle add new room
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_room'])) {
+    $room_type_id = $_POST['room_type_id'];
+    $room_number = $_POST['room_number'];
+    $price_per_night = $_POST['price_per_night'];
+    $status = 'available';
+    
+    // Check if room number already exists
+    $check_stmt = $connect->prepare("SELECT COUNT(*) as count FROM room WHERE ROOM_NUMBER = ?");
+    $check_stmt->bind_param("i", $room_number);
+    $check_stmt->execute();
+    $check_result = $check_stmt->get_result();
+    $room_exists = $check_result->fetch_assoc()['count'] > 0;
+    $check_stmt->close();
+    
+    if ($room_exists) {
+        $error_message = "Room number already exists!";
+    } else {
+        $stmt = $connect->prepare("INSERT INTO room (ROOMTYPEID, ROOM_NUMBER, STATUS, PRICE_PER_NIGHT) VALUES (?, ?, ?, ?)");
+        $stmt->bind_param("iisi", $room_type_id, $room_number, $status, $price_per_night);
+        
+        if ($stmt->execute()) {
+            $success_message = "New room added successfully!";
+            
+            // Refresh statistics
+            $stats['total_rooms']++;
+            $stats['available_rooms']++;
+        } else {
+            $error_message = "Error adding room: " . $stmt->error;
+        }
+        $stmt->close();
+    }
+}
+
+// Handle delete room
+if (isset($_GET['delete_room'])) {
+    $room_id = $_GET['delete_room'];
+    
+    // Check if room has any reservations
+    $check_stmt = $connect->prepare("SELECT COUNT(*) as count FROM reservation WHERE ROOMID = ? AND RESV_STATUS IN ('Confirmed', 'Completed')");
+    $check_stmt->bind_param("i", $room_id);
+    $check_stmt->execute();
+    $check_result = $check_stmt->get_result();
+    $has_reservations = $check_result->fetch_assoc()['count'] > 0;
+    $check_stmt->close();
+    
+    if ($has_reservations) {
+        $error_message = "Cannot delete room with active or future reservations!";
+    } else {
+        // Start transaction
+        $connect->begin_transaction();
+        
+        try {
+            // Delete room photos first
+            $photo_stmt = $connect->prepare("DELETE FROM photo_url WHERE Room_ID = ?");
+            $photo_stmt->bind_param("i", $room_id);
+            $photo_stmt->execute();
+            $photo_stmt->close();
+            
+            // Delete room
+            $room_stmt = $connect->prepare("DELETE FROM room WHERE ROOMID = ?");
+            $room_stmt->bind_param("i", $room_id);
+            $room_stmt->execute();
+            $room_stmt->close();
+            
+            // Delete any cancelled reservations for this room
+            $resv_stmt = $connect->prepare("DELETE FROM reservation WHERE ROOMID = ? AND RESV_STATUS = 'Cancelled'");
+            $resv_stmt->bind_param("i", $room_id);
+            $resv_stmt->execute();
+            $resv_stmt->close();
+            
+            $connect->commit();
+            
+            $success_message = "Room deleted successfully!";
+            
+            // Refresh statistics
+            $stats['total_rooms']--;
+            $stats['available_rooms']--;
+            
+        } catch (Exception $e) {
+            $connect->rollback();
+            $error_message = "Error deleting room: " . $e->getMessage();
+        }
+    }
+}
+
+// Handle logout
+if (isset($_GET['logout'])) {
+    session_destroy();
+    header('Location: employee-login.php');
+    exit();
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Employee Dashboard - Rentaly</title>
+    <title>Veloria Palace - Employee Dashboard</title>
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Google Fonts -->
-    <link
-        href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Montserrat:wght@400;500;600&display=swap"
-        rel="stylesheet">
-        <link rel="stylesheet" href="../assets/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Montserrat:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../assets/css/style.css">
     <style>
         :root {
-            --primary-color: #2ecc71;
-            --primary-dark: #27ae60;
-            --secondary-color: #3498db;
+            --primary-color: #B8860B;
+            --primary-dark: #B8860B;
+            --secondary-color: #B8860B;
             --warning-color: #f39c12;
             --danger-color: #e74c3c;
             --text-dark: #333;
@@ -47,13 +434,13 @@
         }
 
         .navbar .nav-link:hover {
-            color: rgba(12, 233, 56, 0.867) !important;
+            color: #B8860B !important;
         }
 
         /* Hero Section */
         .dashboard-hero {
             background: linear-gradient(rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.8)),
-                url('https://images.unsplash.com/photo-1558618666-fcd25c85cd64?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1600&q=80') center/cover no-repeat;
+                url('https://images.unsplash.com/photo-1566073771259-6a8506099945?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1600&q=80') center/cover no-repeat;
             color: white;
             padding: 80px 0 40px;
             margin-bottom: 40px;
@@ -76,34 +463,6 @@
             top: 30px;
             height: fit-content;
         }
-        /* Fix left side alignment */
-        .topbar-left {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-            /* spacing between items */
-        }
-
-        .topbar-left .topbar-widget {
-            display: flex;
-            align-items: center;
-        }
-
-        /* Fix right side social icons */
-        .topbar-right {
-            display: flex;
-            justify-content: flex-end;
-        }
-
-        .topbar-right .social-icons {
-            display: flex;
-            gap: 15px;
-        }
-
-        .topbar-right .social-icons a {
-            color: white;
-        }
-
 
         .sidebar-card {
             background: white;
@@ -117,7 +476,7 @@
             padding: 30px;
             text-align: center;
             border-bottom: 1px solid var(--border-color);
-            background: linear-gradient(135deg, #2ecc71, #27ae60);
+            background: linear-gradient(135deg, #B8860B, #B8860B);
             color: white;
         }
 
@@ -129,12 +488,14 @@
             margin: 0 auto 20px;
             border: 4px solid white;
             background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
-        .employee-image img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
+        .employee-image i {
+            font-size: 3rem;
+            color: var(--primary-color);
         }
 
         .employee-name {
@@ -276,8 +637,8 @@
             font-size: 0.95rem;
         }
 
-        /* Orders Card */
-        .orders-card {
+        /* Bookings Card */
+        .bookings-card {
             background: white;
             border-radius: 15px;
             box-shadow: var(--shadow);
@@ -294,8 +655,8 @@
             border-bottom: 2px solid var(--primary-color);
         }
 
-        /* Car Management Card */
-        .car-management-card {
+        /* Room Management Card */
+        .room-management-card {
             background: white;
             border-radius: 15px;
             box-shadow: var(--shadow);
@@ -303,15 +664,15 @@
             margin-bottom: 30px;
         }
 
-        /* Tabs for Car Management */
-        .car-tabs {
+        /* Tabs for Room Management */
+        .room-tabs {
             display: flex;
             border-bottom: 2px solid var(--border-color);
             margin-bottom: 25px;
             overflow-x: auto;
         }
 
-        .car-tab {
+        .room-tab {
             padding: 12px 25px;
             background: none;
             border: none;
@@ -323,34 +684,34 @@
             white-space: nowrap;
         }
 
-        .car-tab:hover {
+        .room-tab:hover {
             color: var(--primary-color);
         }
 
-        .car-tab.active {
+        .room-tab.active {
             color: var(--primary-color);
             border-bottom-color: var(--primary-color);
         }
 
-        /* Car Management Content */
-        .car-tab-content {
+        /* Room Management Content */
+        .room-tab-content {
             display: none;
         }
 
-        .car-tab-content.active {
+        .room-tab-content.active {
             display: block;
             animation: fadeIn 0.5s ease;
         }
 
-        /* Car List */
-        .car-list {
+        /* Room List */
+        .room-list {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
             gap: 20px;
             margin-bottom: 30px;
         }
 
-        .car-item {
+        .room-item {
             background: white;
             border: 1px solid var(--border-color);
             border-radius: 10px;
@@ -358,26 +719,26 @@
             transition: var(--transition);
         }
 
-        .car-item:hover {
+        .room-item:hover {
             border-color: var(--primary-color);
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
             transform: translateY(-3px);
         }
 
-        .car-image-container {
+        .room-image-container {
             height: 180px;
             overflow: hidden;
             position: relative;
         }
 
-        .car-image-container img {
+        .room-image-container img {
             width: 100%;
             height: 100%;
             object-fit: cover;
             transition: transform 0.5s ease;
         }
 
-        .car-item:hover .car-image-container img {
+        .room-item:hover .room-image-container img {
             transform: scale(1.05);
         }
 
@@ -406,18 +767,18 @@
             color: var(--danger-color);
         }
 
-        .car-info {
+        .room-info {
             padding: 20px;
         }
 
-        .car-name {
+        .room-name {
             font-size: 1.2rem;
             font-weight: 600;
             margin-bottom: 10px;
             color: var(--text-dark);
         }
 
-        .car-details {
+        .room-details {
             display: flex;
             justify-content: space-between;
             margin-bottom: 15px;
@@ -425,7 +786,7 @@
             color: var(--text-light);
         }
 
-        .car-specs {
+        .room-specs {
             display: flex;
             flex-wrap: wrap;
             gap: 10px;
@@ -440,13 +801,14 @@
             color: var(--text-dark);
         }
 
-        .car-actions {
+        .room-actions {
             display: flex;
             gap: 10px;
             margin-top: 15px;
         }
 
-        .btn-edit, .btn-delete {
+        .btn-edit,
+        .btn-delete {
             padding: 8px 15px;
             border-radius: 6px;
             font-size: 0.85rem;
@@ -478,8 +840,8 @@
             color: white;
         }
 
-        /* Add Car Form */
-        .add-car-form {
+        /* Add Room Form */
+        .add-room-form {
             max-width: 800px;
             margin: 0 auto;
         }
@@ -498,13 +860,6 @@
             color: var(--text-dark);
             padding-bottom: 10px;
             border-bottom: 2px solid var(--primary-color);
-        }
-
-        .form-row {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-bottom: 20px;
         }
 
         .form-group {
@@ -536,35 +891,6 @@
             outline: none;
         }
 
-        .quantity-control {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .qty-btn {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            border: 1px solid var(--border-color);
-            background: white;
-            font-size: 1.2rem;
-            cursor: pointer;
-            transition: var(--transition);
-        }
-
-        .qty-btn:hover {
-            border-color: var(--primary-color);
-            color: var(--primary-color);
-        }
-
-        .qty-input {
-            width: 80px;
-            text-align: center;
-            font-weight: 600;
-            font-size: 1.2rem;
-        }
-
         .btn-submit {
             background: var(--primary-color);
             color: white;
@@ -582,8 +908,8 @@
             box-shadow: 0 5px 15px rgba(46, 204, 113, 0.3);
         }
 
-        /* Order Filters */
-        .order-filters {
+        /* Booking Filters */
+        .booking-filters {
             display: flex;
             flex-wrap: wrap;
             gap: 10px;
@@ -611,8 +937,8 @@
             border-color: var(--primary-color);
         }
 
-        /* Order Items */
-        .order-item {
+        /* Booking Items */
+        .booking-item {
             background: white;
             border-radius: 10px;
             padding: 20px;
@@ -622,24 +948,24 @@
             position: relative;
         }
 
-        .order-item:hover {
+        .booking-item:hover {
             border-color: var(--primary-color);
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
         }
 
-        .order-item.pending {
+        .booking-item.pending {
             border-left: 4px solid var(--warning-color);
         }
 
-        .order-item.approved {
+        .booking-item.approved {
             border-left: 4px solid var(--primary-color);
         }
 
-        .order-item.rejected {
+        .booking-item.rejected {
             border-left: 4px solid var(--danger-color);
         }
 
-        .order-header {
+        .booking-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -648,13 +974,13 @@
             gap: 10px;
         }
 
-        .order-id {
+        .booking-id {
             font-size: 1.1rem;
             font-weight: 600;
             color: var(--text-dark);
         }
 
-        .order-status {
+        .booking-status {
             padding: 6px 15px;
             border-radius: 20px;
             font-size: 0.85rem;
@@ -676,19 +1002,19 @@
             color: var(--danger-color);
         }
 
-        .order-details {
+        .booking-details {
             display: flex;
             flex-wrap: wrap;
             gap: 30px;
             margin-bottom: 20px;
         }
 
-        .order-car {
+        .booking-room {
             flex: 1;
             min-width: 300px;
         }
 
-        .car-image {
+        .room-image {
             width: 200px;
             height: 140px;
             border-radius: 8px;
@@ -697,19 +1023,19 @@
             margin-right: 20px;
         }
 
-        .car-image img {
+        .room-image img {
             width: 100%;
             height: 100%;
             object-fit: cover;
         }
 
-        .car-name {
+        .room-name {
             font-size: 1.2rem;
             font-weight: 600;
             margin-bottom: 10px;
         }
 
-        .car-specs {
+        .room-specs {
             display: flex;
             flex-wrap: wrap;
             gap: 15px;
@@ -728,7 +1054,7 @@
             margin-right: 5px;
         }
 
-        .order-info {
+        .booking-info {
             flex: 1;
             min-width: 300px;
         }
@@ -754,7 +1080,7 @@
             font-weight: 500;
         }
 
-        .order-actions {
+        .booking-actions {
             display: flex;
             gap: 10px;
             justify-content: flex-end;
@@ -807,8 +1133,8 @@
             color: white;
         }
 
-        /* Customer Info */
-        .customer-card {
+        /* Guest Info */
+        .guest-card {
             background: white;
             border-radius: 15px;
             box-shadow: var(--shadow);
@@ -816,38 +1142,41 @@
             margin-bottom: 30px;
         }
 
-        .customer-header {
+        .guest-header {
             display: flex;
             align-items: center;
             margin-bottom: 25px;
         }
 
-        .customer-avatar {
+        .guest-avatar {
             width: 70px;
             height: 70px;
             border-radius: 50%;
             overflow: hidden;
             margin-right: 20px;
+            background: linear-gradient(135deg, #f5f5f5, #e0e0e0);
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
-        .customer-avatar img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
+        .guest-avatar i {
+            font-size: 2rem;
+            color: var(--primary-color);
         }
 
-        .customer-name {
+        .guest-name {
             font-size: 1.3rem;
             font-weight: 600;
             margin-bottom: 5px;
         }
 
-        .customer-email {
+        .guest-email {
             color: var(--text-light);
             font-size: 0.95rem;
         }
 
-        .customer-details {
+        .guest-details {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
             gap: 20px;
@@ -920,6 +1249,32 @@
             margin-bottom: 20px;
         }
 
+        /* Alert Messages */
+        .alert-container {
+            position: fixed;
+            top: 100px;
+            right: 20px;
+            z-index: 9999;
+            max-width: 400px;
+        }
+        
+        .alert {
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            animation: slideInRight 0.3s ease;
+        }
+        
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
         /* Responsive */
         @media (max-width: 992px) {
             .dashboard-sidebar {
@@ -927,7 +1282,7 @@
                 margin-bottom: 30px;
             }
 
-            .car-image {
+            .room-image {
                 float: none;
                 width: 100%;
                 height: 200px;
@@ -935,11 +1290,11 @@
                 margin-bottom: 15px;
             }
 
-            .order-details {
+            .booking-details {
                 flex-direction: column;
             }
 
-            .car-list {
+            .room-list {
                 grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
             }
         }
@@ -949,12 +1304,12 @@
                 font-size: 2rem;
             }
 
-            .order-header {
+            .booking-header {
                 flex-direction: column;
                 align-items: flex-start;
             }
 
-            .order-actions {
+            .booking-actions {
                 flex-direction: column;
                 width: 100%;
             }
@@ -963,26 +1318,26 @@
                 width: 100%;
             }
 
-            .customer-header {
+            .guest-header {
                 flex-direction: column;
                 text-align: center;
             }
 
-            .customer-avatar {
+            .guest-avatar {
                 margin-right: 0;
                 margin-bottom: 15px;
             }
 
-            .car-tabs {
+            .room-tabs {
                 flex-direction: column;
             }
 
-            .car-tab {
+            .room-tab {
                 text-align: left;
                 border-bottom: 1px solid var(--border-color);
             }
 
-            .car-tab.active {
+            .room-tab.active {
                 border-bottom-color: var(--primary-color);
             }
         }
@@ -996,9 +1351,9 @@
                 margin-bottom: 20px;
             }
 
-            .orders-card,
-            .customer-card,
-            .car-management-card,
+            .bookings-card,
+            .guest-card,
+            .room-management-card,
             .signout-card {
                 padding: 20px;
             }
@@ -1007,7 +1362,7 @@
                 font-size: 2rem;
             }
 
-            .car-list {
+            .room-list {
                 grid-template-columns: 1fr;
             }
 
@@ -1022,6 +1377,7 @@
                 opacity: 0;
                 transform: translateY(20px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
@@ -1033,75 +1389,40 @@
         }
     </style>
 </head>
-
 <body>
-    <!-- Top Bar -->
-    <div id="topbar" class="topbar-dark text-light">
-        <div class="container">
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="topbar-left xs-hide">
-                        <div class="topbar-widget">
-                            <a href="#"><i class="fa fa-phone"></i>+961 01 234 567</a>
-                        </div>
-                        <div class="topbar-widget">
-                            <a href="#"><i class="fa fa-envelope"></i>contact@rentaly.com</a>
-                        </div>
-                        <div class="topbar-widget">
-                            <a href="#"><i class="fa fa-clock"></i>Mon - Fri 08.00 - 18.00</a>
-                        </div>
-                    </div>
-                </div>
 
-                <div class="col-md-6">
-                    <div class="topbar-right">
-                        <div class="social-icons">
-                            <a href="#"><i class="fab fa-facebook fa-lg"></i></a>
-                            <a href="#"><i class="fab fa-twitter fa-lg"></i></a>
-                            <a href="#"><i class="fab fa-youtube fa-lg"></i></a>
-                            <a href="#"><i class="fab fa-pinterest fa-lg"></i></a>
-                            <a href="#"><i class="fab fa-instagram fa-lg"></i></a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <!-- Header -->
-    <header>
-        <nav class="navbar navbar-expand-lg navbar-dark sticky-top">
-            <div class="container">
-                <a class="navbar-brand" href="index.php">
-                    <img src="../assets/img/logo-light.png" alt="Rentaly" style="height: 40px;">
-                </a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain"
-                    aria-controls="navbarMain" aria-expanded="false" aria-label="Toggle navigation">
-                    <i class="fas fa-bars"></i>
-                </button>
-                <div class="collapse navbar-collapse" id="navbarMain">
-                    <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
-                        <li class="nav-item">
-                            <a class="nav-link" href="index.php">Home</a>
-                        </li>
-                        
-                        <li class="nav-item">
-                            <a class="nav-link" href="myAccountEmployee.php">Manage Cars</a>
-                        </li>
-                        
-                    </ul>
-                </div>
-            </div>
-        </nav>
-    </header>
+    
+
+    <!-- Messages -->
+    <?php if(isset($success_message)): ?>
+    <div class="alert-container">
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="fas fa-check-circle me-2"></i>
+            <?php echo htmlspecialchars($success_message); ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    </div>
+    <?php endif; ?>
+    
+    <?php if(isset($error_message)): ?>
+    <div class="alert-container">
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="fas fa-exclamation-circle me-2"></i>
+            <?php echo htmlspecialchars($error_message); ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    </div>
+    <?php endif; ?>
 
     <!-- Hero Section -->
     <section class="dashboard-hero">
         <div class="container">
             <div class="row">
                 <div class="col-lg-12 text-center">
-                    <h1 class="hero-title">Employee Dashboard</h1>
-                    <p class="lead">Manage client orders, car inventory, and handle customer inquiries.</p>
+                    <h1 class="hero-title">Hotel Management Dashboard</h1>
+                    <p class="lead">Manage guest bookings, room inventory, and handle hotel operations.</p>
                 </div>
             </div>
         </div>
@@ -1116,10 +1437,12 @@
                     <div class="dashboard-sidebar">
                         <div class="sidebar-card fade-in">
                             <div class="employee-profile">
-                                
-                                <h3 class="employee-name">Haidar Habach</h3>
-                                <div class="employee-role">Admin</div>
-                                <p class="mt-3" style="font-size: 0.9rem; opacity: 0.9;">Employee ID: EMP-2023-045</p>
+                                <div class="employee-image">
+                                    <i class="fas fa-user-tie"></i>
+                                </div>
+                                <h3 class="employee-name"><?php echo htmlspecialchars($employee['name']); ?></h3>
+                                <div class="employee-role"><?php echo htmlspecialchars($employee['position']); ?></div>
+                                <p class="mt-3" style="font-size: 0.9rem; opacity: 0.9;">Employee ID: <?php echo $employee['employee_id']; ?></p>
                             </div>
 
                             <div class="sidebar-menu">
@@ -1127,15 +1450,14 @@
                                     <i class="fas fa-tachometer-alt"></i>
                                     <span>Dashboard</span>
                                 </button>
-                                <button class="menu-button" data-section="orders">
+                                <button class="menu-button" data-section="bookings">
                                     <i class="fas fa-clipboard-list"></i>
-                                    <span>Manage Orders</span>
+                                    <span>Manage Bookings</span>
                                 </button>
-                                <button class="menu-button" data-section="cars">
-                                    <i class="fas fa-car"></i>
-                                    <span>Car Management</span>
+                                <button class="menu-button" data-section="rooms">
+                                    <i class="fas fa-bed"></i>
+                                    <span>Room Management</span>
                                 </button>
-                                
                                 <button class="menu-button" data-section="signout">
                                     <i class="fas fa-sign-out-alt"></i>
                                     <span>Sign Out</span>
@@ -1156,8 +1478,8 @@
                                     <div class="stat-icon">
                                         <i class="fas fa-clock"></i>
                                     </div>
-                                    <div class="stat-number" id="pending-count">12</div>
-                                    <div class="stat-label">Pending Orders</div>
+                                    <div class="stat-number" id="pending-count"><?php echo $stats['pending_bookings']; ?></div>
+                                    <div class="stat-label">Pending Bookings</div>
                                 </div>
                             </div>
 
@@ -1166,8 +1488,8 @@
                                     <div class="stat-icon">
                                         <i class="fas fa-check-circle"></i>
                                     </div>
-                                    <div class="stat-number" id="approved-count">58</div>
-                                    <div class="stat-label">Approved Orders</div>
+                                    <div class="stat-number" id="approved-count"><?php echo $stats['confirmed_bookings']; ?></div>
+                                    <div class="stat-label">Confirmed Bookings</div>
                                 </div>
                             </div>
 
@@ -1176,8 +1498,8 @@
                                     <div class="stat-icon">
                                         <i class="fas fa-times-circle"></i>
                                     </div>
-                                    <div class="stat-number" id="rejected-count">24</div>
-                                    <div class="stat-label">Rejected Orders</div>
+                                    <div class="stat-number" id="rejected-count"><?php echo $stats['cancelled_bookings']; ?></div>
+                                    <div class="stat-label">Cancelled Bookings</div>
                                 </div>
                             </div>
 
@@ -1186,21 +1508,21 @@
                                     <div class="stat-icon">
                                         <i class="fas fa-list-alt"></i>
                                     </div>
-                                    <div class="stat-number" id="total-count">94</div>
-                                    <div class="stat-label">Total Orders</div>
+                                    <div class="stat-number" id="total-count"><?php echo $stats['total_bookings']; ?></div>
+                                    <div class="stat-label">Total Bookings</div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Car Inventory Stats -->
+                        <!-- Room Inventory Stats -->
                         <div class="row stats-grid g-4 fade-in">
                             <div class="col-lg-4 col-sm-6">
                                 <div class="stat-card" style="border-top-color: #9b59b6;">
                                     <div class="stat-icon" style="background: #9b59b6;">
-                                        <i class="fas fa-car"></i>
+                                        <i class="fas fa-bed"></i>
                                     </div>
-                                    <div class="stat-number" id="total-cars">42</div>
-                                    <div class="stat-label">Total Cars</div>
+                                    <div class="stat-number" id="total-rooms"><?php echo $stats['total_rooms']; ?></div>
+                                    <div class="stat-label">Total Rooms</div>
                                 </div>
                             </div>
 
@@ -1209,8 +1531,8 @@
                                     <div class="stat-icon" style="background: var(--primary-color);">
                                         <i class="fas fa-check-circle"></i>
                                     </div>
-                                    <div class="stat-number" id="available-cars">28</div>
-                                    <div class="stat-label">Available Cars</div>
+                                    <div class="stat-number" id="available-rooms"><?php echo $stats['available_rooms']; ?></div>
+                                    <div class="stat-label">Available Rooms</div>
                                 </div>
                             </div>
 
@@ -1219,815 +1541,472 @@
                                     <div class="stat-icon" style="background: var(--warning-color);">
                                         <i class="fas fa-exclamation-circle"></i>
                                     </div>
-                                    <div class="stat-number" id="low-stock-cars">5</div>
-                                    <div class="stat-label">Low Stock</div>
+                                    <div class="stat-number" id="occupied-rooms"><?php echo $stats['occupied_rooms']; ?></div>
+                                    <div class="stat-label">Occupied Rooms</div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Pending Orders -->
-                        <div class="orders-card fade-in">
+                        <!-- Pending Bookings -->
+                        <div class="bookings-card fade-in">
                             <div class="d-flex justify-content-between align-items-center mb-4">
-                                <h3 class="card-title mb-0">Pending Orders - Need Action</h3>
-                                <span class="badge bg-warning">12 orders require attention</span>
+                                <h3 class="card-title mb-0">Pending Bookings - Need Action</h3>
+                                <span class="badge bg-warning"><?php echo $stats['pending_bookings']; ?> booking<?php echo $stats['pending_bookings'] != 1 ? 's' : ''; ?> require attention</span>
                             </div>
 
-                            <!-- Pending Order 1 -->
-                            <div class="order-item pending" data-order-id="ORD-2023-001">
-                                <div class="order-header">
-                                    <div class="order-id">ORD-2023-001 - Jeep Renegade</div>
-                                    <div class="order-status status-pending">Pending Approval</div>
-                                </div>
-                                
-                                <div class="order-details">
-                                    <div class="order-car">
-                                        <div class="car-image">
-                                            <img src="https://images.unsplash.com/photo-1503376780353-7e6692767b70?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80" alt="Jeep Renegade">
-                                        </div>
-                                        <div class="car-name">Jeep Renegade 2023</div>
-                                        <div class="car-specs">
-                                            <div class="spec-item">
-                                                <i class="fas fa-user"></i> 4 Seats
-                                            </div>
-                                            <div class="spec-item">
-                                                <i class="fas fa-suitcase"></i> 2 Bags
-                                            </div>
-                                            <div class="spec-item">
-                                                <i class="fas fa-gas-pump"></i> Petrol
-                                            </div>
-                                        </div>
+                            <?php if($recent_pending_bookings_result->num_rows > 0): ?>
+                                <?php while($booking = $recent_pending_bookings_result->fetch_assoc()): 
+                                    $room_image = !empty($booking['room_image']) ? '../assets/images/rooms/' . $booking['room_image'] : 'https://images.unsplash.com/photo-1611892440504-42a792e24d32?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80';
+                                ?>
+                                <div class="booking-item pending" data-booking-id="<?php echo $booking['RESERVATIONID']; ?>">
+                                    <div class="booking-header">
+                                        <div class="booking-id">BOOKING #<?php echo str_pad($booking['RESERVATIONID'], 6, '0', STR_PAD_LEFT); ?> - <?php echo htmlspecialchars($booking['room_type']); ?></div>
+                                        <div class="booking-status status-pending">Pending Confirmation</div>
                                     </div>
-                                    
-                                    <div class="order-info">
-                                        <div class="info-item">
-                                            <span class="info-label">Customer:</span>
-                                            <span class="info-value highlight">Michael Johnson</span>
-                                        </div>
-                                        <div class="info-item">
-                                            <span class="info-label">Pickup Date:</span>
-                                            <span class="info-value">March 15, 2023</span>
-                                        </div>
-                                        <div class="info-item">
-                                            <span class="info-label">Return Date:</span>
-                                            <span class="info-value">March 20, 2023</span>
-                                        </div>
-                                        <div class="info-item">
-                                            <span class="info-label">Location:</span>
-                                            <span class="info-value">New York → Los Angeles</span>
-                                        </div>
-                                        <div class="info-item">
-                                            <span class="info-label">Total Amount:</span>
-                                            <span class="info-value highlight">$1,325.00</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <div class="order-actions">
-                                    <button class="btn-action btn-reject" data-action="reject" onclick="handleOrderAction('reject', 'ORD-2023-001')">Reject</button>
-                                    <button class="btn-action btn-approve" data-action="approve" onclick="handleOrderAction('approve', 'ORD-2023-001')">Approve</button>
-                                </div>
-                            </div>
-                            
-                            <!-- Pending Order 2 -->
-                            <div class="order-item pending" data-order-id="ORD-2023-002">
-                                <div class="order-header">
-                                    <div class="order-id">ORD-2023-002 - BMW M2</div>
-                                    <div class="order-status status-pending">Pending Approval</div>
-                                </div>
-                                
-                                <div class="order-details">
-                                    <div class="order-car">
-                                        <div class="car-image">
-                                            <img src="https://images.unsplash.com/photo-1555215695-3004980ad54e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80" alt="BMW M2">
-                                        </div>
-                                        <div class="car-name">BMW M2 Competition 2023</div>
-                                        <div class="car-specs">
-                                            <div class="spec-item">
-                                                <i class="fas fa-user"></i> 2 Seats
-                                            </div>
-                                            <div class="spec-item">
-                                                <i class="fas fa-suitcase"></i> 1 Bag
-                                            </div>
-                                            <div class="spec-item">
-                                                <i class="fas fa-gas-pump"></i> Petrol
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="order-info">
-                                        <div class="info-item">
-                                            <span class="info-label">Customer:</span>
-                                            <span class="info-value highlight">Sarah Williams</span>
-                                        </div>
-                                        <div class="info-item">
-                                            <span class="info-label">Pickup Date:</span>
-                                            <span class="info-value">March 18, 2023</span>
-                                        </div>
-                                        <div class="info-item">
-                                            <span class="info-label">Return Date:</span>
-                                            <span class="info-value">March 25, 2023</span>
-                                        </div>
-                                        <div class="info-item">
-                                            <span class="info-label">Location:</span>
-                                            <span class="info-value">Miami Airport</span>
-                                        </div>
-                                        <div class="info-item">
-                                            <span class="info-label">Total Amount:</span>
-                                            <span class="info-value highlight">$1,708.00</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <div class="order-actions">
-                                    <button class="btn-action btn-reject" data-action="reject" onclick="handleOrderAction('reject', 'ORD-2023-002')">Reject</button>
-                                    <button class="btn-action btn-approve" data-action="approve" onclick="handleOrderAction('approve', 'ORD-2023-002')">Approve</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
 
-                    <!-- Manage Orders Content -->
-                    <div id="orders-section" class="content-section">
-                        <div class="orders-card fade-in">
-                            <div class="d-flex justify-content-between align-items-center mb-4">
-                                <h3 class="card-title mb-0">Manage All Orders</h3>
-                                <div class="order-filters">
-                                    <button class="filter-btn active" onclick="filterOrders('all')">All Orders</button>
-                                    <button class="filter-btn" onclick="filterOrders('pending')">Pending</button>
-                                    <button class="filter-btn" onclick="filterOrders('approved')">Approved</button>
-                                    <button class="filter-btn" onclick="filterOrders('rejected')">Rejected</button>
-                                </div>
-                            </div>
-                            <p class="text-muted mb-4">Review, approve, or reject client rental orders</p>
-
-                            <div id="orders-container">
-                                <!-- Order 1: Pending -->
-                                <div class="order-item pending" data-order-id="ORD-2023-001" data-status="pending">
-                                    <div class="order-header">
-                                        <div class="order-id">ORD-2023-001 - Jeep Renegade</div>
-                                        <div class="order-status status-pending">Pending Approval</div>
-                                    </div>
-                                    
-                                    <div class="order-details">
-                                        <div class="order-car">
-                                            <div class="car-image">
-                                                <img src="https://images.unsplash.com/photo-1503376780353-7e6692767b70?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80" alt="Jeep Renegade">
+                                    <div class="booking-details">
+                                        <div class="booking-room">
+                                            <div class="room-image">
+                                                <img src="<?php echo $room_image; ?>" 
+                                                     alt="<?php echo htmlspecialchars($booking['room_type']); ?>"
+                                                     onerror="this.src='https://images.unsplash.com/photo-1611892440504-42a792e24d32?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80'">
                                             </div>
-                                            <div class="car-name">Jeep Renegade 2023</div>
-                                            <div class="car-specs">
+                                            <div class="room-name"><?php echo htmlspecialchars($booking['room_type']); ?></div>
+                                            <div class="room-specs">
                                                 <div class="spec-item">
-                                                    <i class="fas fa-user"></i> 4 Seats
+                                                    <i class="fas fa-user"></i> <?php echo $booking['NB_GUEST']; ?> Guest<?php echo $booking['NB_GUEST'] > 1 ? 's' : ''; ?>
                                                 </div>
                                                 <div class="spec-item">
-                                                    <i class="fas fa-suitcase"></i> 2 Bags
+                                                    <i class="fas fa-bed"></i> Room <?php echo $booking['ROOM_NUMBER']; ?>
                                                 </div>
                                                 <div class="spec-item">
-                                                    <i class="fas fa-gas-pump"></i> Petrol
+                                                    <i class="fas fa-calendar"></i> <?php echo $booking['nights']; ?> night<?php echo $booking['nights'] > 1 ? 's' : ''; ?>
                                                 </div>
                                             </div>
                                         </div>
-                                        
-                                        <div class="order-info">
+
+                                        <div class="booking-info">
                                             <div class="info-item">
-                                                <span class="info-label">Customer:</span>
-                                                <span class="info-value highlight">Michael Johnson</span>
+                                                <span class="info-label">Guest:</span>
+                                                <span class="info-value highlight"><?php echo htmlspecialchars($booking['guest_name']); ?></span>
                                             </div>
                                             <div class="info-item">
-                                                <span class="info-label">Pickup Date:</span>
-                                                <span class="info-value">March 15, 2023</span>
+                                                <span class="info-label">Email:</span>
+                                                <span class="info-value"><?php echo htmlspecialchars($booking['guest_email']); ?></span>
                                             </div>
                                             <div class="info-item">
-                                                <span class="info-label">Return Date:</span>
-                                                <span class="info-value">March 20, 2023</span>
+                                                <span class="info-label">Phone:</span>
+                                                <span class="info-value"><?php echo htmlspecialchars($booking['guest_phone']); ?></span>
                                             </div>
                                             <div class="info-item">
-                                                <span class="info-label">Location:</span>
-                                                <span class="info-value">New York → Los Angeles</span>
+                                                <span class="info-label">Check-in:</span>
+                                                <span class="info-value"><?php echo date('M j, Y', strtotime($booking['CKECKIN'])); ?></span>
+                                            </div>
+                                            <div class="info-item">
+                                                <span class="info-label">Check-out:</span>
+                                                <span class="info-value"><?php echo date('M j, Y', strtotime($booking['CHECKOUT'])); ?></span>
                                             </div>
                                             <div class="info-item">
                                                 <span class="info-label">Total Amount:</span>
-                                                <span class="info-value highlight">$1,325.00</span>
+                                                <span class="info-value highlight">$<?php echo number_format($booking['total_amount'], 2); ?></span>
                                             </div>
                                         </div>
                                     </div>
-                                    
-                                    <div class="order-actions">
-                                        <button class="btn-action btn-reject" onclick="handleOrderAction('reject', 'ORD-2023-001')">Reject</button>
-                                        <button class="btn-action btn-approve" onclick="handleOrderAction('approve', 'ORD-2023-001')">Approve</button>
+
+                                    <div class="booking-actions">
+                                        <a href="?cancel_booking=<?php echo $booking['RESERVATIONID']; ?>" 
+                                           class="btn-action btn-reject"
+                                           onclick="return confirm('Are you sure you want to cancel this booking?')">Reject</a>
+                                        <a href="?approve_booking=<?php echo $booking['RESERVATIONID']; ?>" 
+                                           class="btn-action btn-approve"
+                                           onclick="return confirm('Are you sure you want to confirm this booking?')">Approve</a>
                                     </div>
                                 </div>
-
-                                <!-- Order 2: Pending -->
-                                <div class="order-item pending" data-order-id="ORD-2023-002" data-status="pending">
-                                    <div class="order-header">
-                                        <div class="order-id">ORD-2023-002 - BMW M2</div>
-                                        <div class="order-status status-pending">Pending Approval</div>
-                                    </div>
-                                    
-                                    <div class="order-details">
-                                        <div class="order-car">
-                                            <div class="car-image">
-                                                <img src="https://images.unsplash.com/photo-1555215695-3004980ad54e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80" alt="BMW M2">
-                                            </div>
-                                            <div class="car-name">BMW M2 Competition 2023</div>
-                                            <div class="car-specs">
-                                                <div class="spec-item">
-                                                    <i class="fas fa-user"></i> 2 Seats
-                                                </div>
-                                                <div class="spec-item">
-                                                    <i class="fas fa-suitcase"></i> 1 Bag
-                                                </div>
-                                                <div class="spec-item">
-                                                    <i class="fas fa-gas-pump"></i> Petrol
-                                                </div>
-                                            </div>
-                                        </div>
-                                        
-                                        <div class="order-info">
-                                            <div class="info-item">
-                                                <span class="info-label">Customer:</span>
-                                                <span class="info-value highlight">Sarah Williams</span>
-                                            </div>
-                                            <div class="info-item">
-                                                <span class="info-label">Pickup Date:</span>
-                                                <span class="info-value">March 18, 2023</span>
-                                            </div>
-                                            <div class="info-item">
-                                                <span class="info-label">Return Date:</span>
-                                                <span class="info-value">March 25, 2023</span>
-                                            </div>
-                                            <div class="info-item">
-                                                <span class="info-label">Location:</span>
-                                                <span class="info-value">Miami Airport</span>
-                                            </div>
-                                            <div class="info-item">
-                                                <span class="info-label">Total Amount:</span>
-                                                <span class="info-value highlight">$1,708.00</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="order-actions">
-                                        <button class="btn-action btn-reject" onclick="handleOrderAction('reject', 'ORD-2023-002')">Reject</button>
-                                        <button class="btn-action btn-approve" onclick="handleOrderAction('approve', 'ORD-2023-002')">Approve</button>
-                                    </div>
-                                </div>
-
-                                <!-- Order 3: Approved -->
-                                <div class="order-item approved" data-order-id="ORD-2023-003" data-status="approved">
-                                    <div class="order-header">
-                                        <div class="order-id">ORD-2023-003 - Ferrari Enzo</div>
-                                        <div class="order-status status-approved">Approved</div>
-                                    </div>
-                                    
-                                    <div class="order-details">
-                                        <div class="order-car">
-                                            <div class="car-image">
-                                                <img src="https://images.unsplash.com/photo-1580273916550-e323be2ae537?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80" alt="Ferrari Enzo">
-                                            </div>
-                                            <div class="car-name">Ferrari Enzo 2022</div>
-                                            <div class="car-specs">
-                                                <div class="spec-item">
-                                                    <i class="fas fa-user"></i> 2 Seats
-                                                </div>
-                                                <div class="spec-item">
-                                                    <i class="fas fa-suitcase"></i> 1 Bag
-                                                </div>
-                                                <div class="spec-item">
-                                                    <i class="fas fa-gas-pump"></i> Petrol
-                                                </div>
-                                            </div>
-                                        </div>
-                                        
-                                        <div class="order-info">
-                                            <div class="info-item">
-                                                <span class="info-label">Customer:</span>
-                                                <span class="info-value highlight">Robert Chen</span>
-                                            </div>
-                                            <div class="info-item">
-                                                <span class="info-label">Pickup Date:</span>
-                                                <span class="info-value">March 10, 2023</span>
-                                            </div>
-                                            <div class="info-item">
-                                                <span class="info-label">Return Date:</span>
-                                                <span class="info-value">March 12, 2023</span>
-                                            </div>
-                                            <div class="info-item">
-                                                <span class="info-label">Location:</span>
-                                                <span class="info-value">Las Vegas</span>
-                                            </div>
-                                            <div class="info-item">
-                                                <span class="info-label">Total Amount:</span>
-                                                <span class="info-value highlight">$2,500.00</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    
-                                </div>
-
-                                <!-- Order 4: Rejected -->
-                                <div class="order-item rejected" data-order-id="ORD-2023-004" data-status="rejected">
-                                    <div class="order-header">
-                                        <div class="order-id">ORD-2023-004 - Toyota Rav 4</div>
-                                        <div class="order-status status-rejected">Rejected</div>
-                                    </div>
-                                    
-                                    <div class="order-details">
-                                        <div class="order-car">
-                                            <div class="car-image">
-                                                <img src="https://images.unsplash.com/photo-1553440569-bcc63803a83d?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80" alt="Toyota Rav 4">
-                                            </div>
-                                            <div class="car-name">Toyota Rav 4 2023</div>
-                                            <div class="car-specs">
-                                                <div class="spec-item">
-                                                    <i class="fas fa-user"></i> 5 Seats
-                                                </div>
-                                                <div class="spec-item">
-                                                    <i class="fas fa-suitcase"></i> 3 Bags
-                                                </div>
-                                                <div class="spec-item">
-                                                    <i class="fas fa-gas-pump"></i> Hybrid
-                                                </div>
-                                            </div>
-                                        </div>
-                                        
-                                        <div class="order-info">
-                                            <div class="info-item">
-                                                <span class="info-label">Customer:</span>
-                                                <span class="info-value highlight">Emma Davis</span>
-                                            </div>
-                                            <div class="info-item">
-                                                <span class="info-label">Pickup Date:</span>
-                                                <span class="info-value">March 5, 2023</span>
-                                            </div>
-                                            <div class="info-item">
-                                                <span class="info-label">Return Date:</span>
-                                                <span class="info-value">March 10, 2023</span>
-                                            </div>
-                                            <div class="info-item">
-                                                <span class="info-label">Location:</span>
-                                                <span class="info-value">Chicago → Detroit</span>
-                                            </div>
-                                            <div class="info-item">
-                                                <span class="info-label">Total Amount:</span>
-                                                <span class="info-value highlight">$850.00</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    
-                                </div>
-                            </div>
-
-                            <div id="empty-orders" class="empty-state" style="display: none;">
+                                <?php endwhile; ?>
+                            <?php else: ?>
+                            <div class="empty-state">
                                 <div class="empty-icon">
-                                    <i class="fas fa-clipboard-list"></i>
+                                    <i class="fas fa-check-circle"></i>
                                 </div>
-                                <h5>No orders found</h5>
-                                <p>There are no orders matching your current filter.</p>
+                                <h5>No Pending Bookings</h5>
+                                <p>All bookings are currently processed.</p>
+                            </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+
+                    <!-- Manage Bookings Content -->
+                    <div id="bookings-section" class="content-section">
+                        <div class="bookings-card fade-in">
+                            <div class="d-flex justify-content-between align-items-center mb-4">
+                                <h3 class="card-title mb-0">Manage All Bookings</h3>
+                                <div class="booking-filters">
+                                    <button class="filter-btn active" onclick="filterBookings('all')">All Bookings</button>
+                                    <button class="filter-btn" onclick="filterBookings('Confirmed')">Pending</button>
+                                    <button class="filter-btn" onclick="filterBookings('Completed')">Confirmed</button>
+                                    <button class="filter-btn" onclick="filterBookings('Cancelled')">Cancelled</button>
+                                </div>
+                            </div>
+                            <p class="text-muted mb-4">Review, confirm, or cancel guest hotel bookings</p>
+
+                            <div id="bookings-container">
+                                <?php if($all_bookings_result->num_rows > 0): ?>
+                                    <?php while($booking = $all_bookings_result->fetch_assoc()): 
+                                        $room_image = !empty($booking['room_image']) ? '../assets/images/rooms/' . $booking['room_image'] : 'https://images.unsplash.com/photo-1611892440504-42a792e24d32?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80';
+                                        $status_class = '';
+                                        $status_text = '';
+                                        $border_class = '';
+                                        
+                                        switch($booking['RESV_STATUS']) {
+                                            case 'Confirmed':
+                                                $status_class = 'status-pending';
+                                                $status_text = 'Pending Confirmation';
+                                                $border_class = 'pending';
+                                                break;
+                                            case 'Completed':
+                                                $status_class = 'status-approved';
+                                                $status_text = 'Confirmed';
+                                                $border_class = 'approved';
+                                                break;
+                                            case 'Cancelled':
+                                                $status_class = 'status-rejected';
+                                                $status_text = 'Cancelled';
+                                                $border_class = 'rejected';
+                                                break;
+                                            default:
+                                                $status_class = 'status-pending';
+                                                $status_text = $booking['RESV_STATUS'];
+                                                $border_class = 'pending';
+                                        }
+                                    ?>
+                                    <div class="booking-item <?php echo $border_class; ?>" data-booking-id="<?php echo $booking['RESERVATIONID']; ?>" data-status="<?php echo $booking['RESV_STATUS']; ?>">
+                                        <div class="booking-header">
+                                            <div class="booking-id">BOOKING #<?php echo str_pad($booking['RESERVATIONID'], 6, '0', STR_PAD_LEFT); ?> - <?php echo htmlspecialchars($booking['room_type']); ?></div>
+                                            <div class="booking-status <?php echo $status_class; ?>"><?php echo $status_text; ?></div>
+                                        </div>
+
+                                        <div class="booking-details">
+                                            <div class="booking-room">
+                                                <div class="room-image">
+                                                    <img src="<?php echo $room_image; ?>" 
+                                                         alt="<?php echo htmlspecialchars($booking['room_type']); ?>"
+                                                         onerror="this.src='https://images.unsplash.com/photo-1611892440504-42a792e24d32?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80'">
+                                                </div>
+                                                <div class="room-name"><?php echo htmlspecialchars($booking['room_type']); ?> - Room <?php echo $booking['ROOM_NUMBER']; ?></div>
+                                                <div class="room-specs">
+                                                    <div class="spec-item">
+                                                        <i class="fas fa-user"></i> <?php echo $booking['NB_GUEST']; ?> Guest<?php echo $booking['NB_GUEST'] > 1 ? 's' : ''; ?>
+                                                    </div>
+                                                    <div class="spec-item">
+                                                        <i class="fas fa-bed"></i> <?php echo $booking['bed']; ?> Bed<?php echo $booking['bed'] > 1 ? 's' : ''; ?>
+                                                    </div>
+                                                    <div class="spec-item">
+                                                        <i class="fas fa-bath"></i> <?php echo $booking['toillet']; ?> Bathroom<?php echo $booking['toillet'] > 1 ? 's' : ''; ?>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div class="booking-info">
+                                                <div class="info-item">
+                                                    <span class="info-label">Guest:</span>
+                                                    <span class="info-value highlight"><?php echo htmlspecialchars($booking['guest_name']); ?></span>
+                                                </div>
+                                                <div class="info-item">
+                                                    <span class="info-label">Check-in:</span>
+                                                    <span class="info-value"><?php echo date('M j, Y', strtotime($booking['CKECKIN'])); ?></span>
+                                                </div>
+                                                <div class="info-item">
+                                                    <span class="info-label">Check-out:</span>
+                                                    <span class="info-value"><?php echo date('M j, Y', strtotime($booking['CHECKOUT'])); ?></span>
+                                                </div>
+                                                <div class="info-item">
+                                                    <span class="info-label">Nights:</span>
+                                                    <span class="info-value"><?php echo $booking['nights']; ?> night<?php echo $booking['nights'] > 1 ? 's' : ''; ?></span>
+                                                </div>
+                                                <div class="info-item">
+                                                    <span class="info-label">Total Amount:</span>
+                                                    <span class="info-value highlight">$<?php echo number_format($booking['total_amount'], 2); ?></span>
+                                                </div>
+                                                <?php if(!empty($booking['PAYMENTMETHOD'])): ?>
+                                                <div class="info-item">
+                                                    <span class="info-label">Payment:</span>
+                                                    <span class="info-value"><?php echo htmlspecialchars($booking['PAYMENTMETHOD']); ?> (<?php echo htmlspecialchars($booking['STATUS_PAYMENT']); ?>)</span>
+                                                </div>
+                                                <?php endif; ?>
+                                            </div>
+                                        </div>
+
+                                        <?php if($booking['RESV_STATUS'] == 'Confirmed'): ?>
+                                        <div class="booking-actions">
+                                            <a href="?cancel_booking=<?php echo $booking['RESERVATIONID']; ?>" 
+                                               class="btn-action btn-reject"
+                                               onclick="return confirm('Are you sure you want to cancel this booking?')">Reject</a>
+                                            <a href="?approve_booking=<?php echo $booking['RESERVATIONID']; ?>" 
+                                               class="btn-action btn-approve"
+                                               onclick="return confirm('Are you sure you want to confirm this booking?')">Approve</a>
+                                        </div>
+                                        <?php endif; ?>
+                                    </div>
+                                    <?php endwhile; ?>
+                                <?php else: ?>
+                                <div class="empty-state">
+                                    <div class="empty-icon">
+                                        <i class="fas fa-clipboard-list"></i>
+                                    </div>
+                                    <h5>No Bookings Found</h5>
+                                    <p>There are no bookings in the system.</p>
+                                </div>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Car Management Content -->
-                    <div id="cars-section" class="content-section">
-                        <div class="car-management-card fade-in">
+                    <!-- Room Management Content -->
+                    <div id="rooms-section" class="content-section">
+                        <div class="room-management-card fade-in">
                             <div class="d-flex justify-content-between align-items-center mb-4">
-                                <h3 class="card-title mb-0">Car Inventory Management</h3>
-                                <span class="badge bg-primary">Manage fleet and availability</span>
+                                <h3 class="card-title mb-0">Room Inventory Management</h3>
+                                <span class="badge bg-primary">Manage rooms and availability</span>
                             </div>
 
-                            <!-- Car Management Tabs -->
-                            <div class="car-tabs">
-                                <button class="car-tab active" data-tab="view-cars" onclick="switchCarTab('view-cars')">
-                                    <i class="fas fa-list me-2"></i>View All Cars
+                            <!-- Room Management Tabs -->
+                            <div class="room-tabs">
+                                <button class="room-tab active" data-tab="view-rooms" onclick="switchRoomTab('view-rooms')">
+                                    <i class="fas fa-list me-2"></i>View All Rooms
                                 </button>
-                                <button class="car-tab" data-tab="add-car" onclick="switchCarTab('add-car')">
-                                    <i class="fas fa-plus-circle me-2"></i>Add New Car
+                                <button class="room-tab" data-tab="add-room" onclick="switchRoomTab('add-room')">
+                                    <i class="fas fa-plus-circle me-2"></i>Add New Room
                                 </button>
-                                <button class="car-tab" data-tab="manage-quantity" onclick="switchCarTab('manage-quantity')">
-                                    <i class="fas fa-boxes me-2"></i>Manage Quantity
+                                <button class="room-tab" data-tab="manage-status" onclick="switchRoomTab('manage-status')">
+                                    <i class="fas fa-cogs me-2"></i>Manage Status
                                 </button>
                             </div>
 
-                            <!-- View All Cars Tab -->
-                            <div id="view-cars" class="car-tab-content active">
+                            <!-- View All Rooms Tab -->
+                            <div id="view-rooms" class="room-tab-content active">
                                 <div class="d-flex justify-content-between align-items-center mb-4">
-                                    <h5 class="mb-0">Fleet Overview</h5>
-                                    
+                                    <h5 class="mb-0">Room Inventory Overview</h5>
+                                    <select id="room-filter" class="form-select w-auto" onchange="filterRooms()">
+                                        <option value="all">All Rooms</option>
+                                        <option value="available">Available</option>
+                                        <option value="Reserved">Occupied</option>
+                                    </select>
                                 </div>
 
-                                <div class="car-list" id="car-list-container">
-                                    <!-- Car 1: Jeep Renegade -->
-                                    <div class="car-item" data-car-id="CAR-001" data-available="3" data-quantity="5" data-status="available">
-                                        <div class="car-image-container">
-                                            <img src="https://images.unsplash.com/photo-1503376780353-7e6692767b70?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80" alt="Jeep Renegade">
-                                            <span class="availability-badge available">
-                                                Available (3/5)
-                                            </span>
-                                        </div>
-                                        <div class="car-info">
-                                            <div class="car-name">Jeep Renegade 2023</div>
-                                            <div class="car-details">
-                                                <span>$265/day</span>
-                                                <span>SUV</span>
-                                            </div>
-                                            <div class="car-specs">
-                                                <span class="spec-badge">
-                                                    <i class="fas fa-user me-1"></i>4 seats
-                                                </span>
-                                                <span class="spec-badge">
-                                                    <i class="fas fa-suitcase me-1"></i>2 bags
-                                                </span>
-                                                <span class="spec-badge">
-                                                    <i class="fas fa-gas-pump me-1"></i>Petrol
-                                                </span>
-                                                <span class="spec-badge">
-                                                    Automatic
-                                                </span>
-                                            </div>
-                                            <div class="car-actions">
-                                                
-                                                <button class="btn-delete" onclick="deleteCar('CAR-001')">
-                                                    <i class="fas fa-trash me-1"></i>Delete
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Car 2: BMW M2 -->
-                                    <div class="car-item" data-car-id="CAR-002" data-available="1" data-quantity="2" data-status="low-stock">
-                                        <div class="car-image-container">
-                                            <img src="https://images.unsplash.com/photo-1555215695-3004980ad54e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80" alt="BMW M2">
-                                            <span class="availability-badge low-stock">
-                                                Low Stock (1/2)
-                                            </span>
-                                        </div>
-                                        <div class="car-info">
-                                            <div class="car-name">BMW M2 Competition 2023</div>
-                                            <div class="car-details">
-                                                <span>$450/day</span>
-                                                <span>Sports Car</span>
-                                            </div>
-                                            <div class="car-specs">
-                                                <span class="spec-badge">
-                                                    <i class="fas fa-user me-1"></i>2 seats
-                                                </span>
-                                                <span class="spec-badge">
-                                                    <i class="fas fa-suitcase me-1"></i>1 bag
-                                                </span>
-                                                <span class="spec-badge">
-                                                    <i class="fas fa-gas-pump me-1"></i>Petrol
-                                                </span>
-                                                <span class="spec-badge">
-                                                    Manual
+                                <div class="room-list" id="room-list-container">
+                                    <?php if($rooms_result->num_rows > 0): ?>
+                                        <?php while($room = $rooms_result->fetch_assoc()): 
+                                            $room_image = !empty($room['room_image']) ? '../assets/images/rooms/' . $room['room_image'] : 'https://images.unsplash.com/photo-1611892440504-42a792e24d32?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80';
+                                            $availability_badge = '';
+                                            $badge_class = '';
+                                            
+                                            switch($room['STATUS']) {
+                                                case 'available':
+                                                    $availability_badge = 'Available';
+                                                    $badge_class = 'available';
+                                                    break;
+                                                case 'Reserved':
+                                                    $availability_badge = 'Occupied';
+                                                    $badge_class = 'low-stock';
+                                                    break;
+                                                default:
+                                                    $availability_badge = $room['STATUS'];
+                                                    $badge_class = 'out-of-stock';
+                                            }
+                                        ?>
+                                        <div class="room-item" data-room-id="ROOM-<?php echo $room['ROOMID']; ?>" data-status="<?php echo $room['STATUS']; ?>">
+                                            <div class="room-image-container">
+                                                <img src="<?php echo $room_image; ?>" 
+                                                     alt="<?php echo htmlspecialchars($room['TYPENAME']); ?>"
+                                                     onerror="this.src='https://images.unsplash.com/photo-1611892440504-42a792e24d32?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80'">
+                                                <span class="availability-badge <?php echo $badge_class; ?>">
+                                                    <?php echo $availability_badge; ?>
                                                 </span>
                                             </div>
-                                            <div class="car-actions">
-                                                
-                                                <button class="btn-delete" onclick="deleteCar('CAR-002')">
-                                                    <i class="fas fa-trash me-1"></i>Delete
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Car 3: Toyota Camry -->
-                                    <div class="car-item" data-car-id="CAR-003" data-available="5" data-quantity="8" data-status="available">
-                                        <div class="car-image-container">
-                                            <img src="https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80" alt="Toyota Camry">
-                                            <span class="availability-badge available">
-                                                Available (5/8)
-                                            </span>
-                                        </div>
-                                        <div class="car-info">
-                                            <div class="car-name">Toyota Camry 2023</div>
-                                            <div class="car-details">
-                                                <span>$85/day</span>
-                                                <span>Sedan</span>
-                                            </div>
-                                            <div class="car-specs">
-                                                <span class="spec-badge">
-                                                    <i class="fas fa-user me-1"></i>5 seats
-                                                </span>
-                                                <span class="spec-badge">
-                                                    <i class="fas fa-suitcase me-1"></i>3 bags
-                                                </span>
-                                                <span class="spec-badge">
-                                                    <i class="fas fa-gas-pump me-1"></i>Hybrid
-                                                </span>
-                                                <span class="spec-badge">
-                                                    Automatic
-                                                </span>
-                                            </div>
-                                            <div class="car-actions">
-                                                
-                                                <button class="btn-delete" onclick="deleteCar('CAR-003')">
-                                                    <i class="fas fa-trash me-1"></i>Delete
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Car 4: Ford F-150 -->
-                                    <div class="car-item" data-car-id="CAR-004" data-available="0" data-quantity="3" data-status="out-of-stock">
-                                        <div class="car-image-container">
-                                            <img src="https://images.unsplash.com/photo-1580273916550-e323be2ae537?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80" alt="Ford F-150">
-                                            <span class="availability-badge out-of-stock">
-                                                Out of Stock (0/3)
-                                            </span>
-                                        </div>
-                                        <div class="car-info">
-                                            <div class="car-name">Ford F-150 2023</div>
-                                            <div class="car-details">
-                                                <span>$120/day</span>
-                                                <span>Pickup Truck</span>
-                                            </div>
-                                            <div class="car-specs">
-                                                <span class="spec-badge">
-                                                    <i class="fas fa-user me-1"></i>5 seats
-                                                </span>
-                                                <span class="spec-badge">
-                                                    <i class="fas fa-suitcase me-1"></i>4 bags
-                                                </span>
-                                                <span class="spec-badge">
-                                                    <i class="fas fa-gas-pump me-1"></i>Diesel
-                                                </span>
-                                                <span class="spec-badge">
-                                                    Automatic
-                                                </span>
-                                            </div>
-                                            <div class="car-actions">
-                                                
-                                                <button class="btn-delete" onclick="deleteCar('CAR-004')">
-                                                    <i class="fas fa-trash me-1"></i>Delete
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div id="empty-cars" class="empty-state" style="display: none;">
-                                    <div class="empty-icon">
-                                        <i class="fas fa-car"></i>
-                                    </div>
-                                    <h5>No cars found</h5>
-                                    <p>There are no cars matching your current filter.</p>
-                                </div>
-                            </div>
-
-                            <!-- Add New Car Tab -->
-                            <div id="add-car" class="car-tab-content">
-                                <h5 class="mb-4">Add New Car to Inventory</h5>
-                                
-                                <form id="addCarForm" class="add-car-form" onsubmit="return addNewCar()">
-                                    <!-- Basic Information -->
-                                    <div class="form-section">
-                                        <h6 class="form-section-title">Basic Information</h6>
-                                        <div class="form-row">
-                                            <div class="form-group">
-                                                <label for="car-brand">Brand *</label>
-                                                <input type="text" id="car-brand" class="form-control" required>
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="car-model">Model *</label>
-                                                <input type="text" id="car-model" class="form-control" required>
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="car-year">Year *</label>
-                                                <input type="number" id="car-year" class="form-control" min="2010" max="2024" value="2023" required>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Specifications -->
-                                    <div class="form-section">
-                                        <h6 class="form-section-title">Specifications</h6>
-                                        <div class="form-row">
-                                            <div class="form-group">
-                                                <label for="car-type">Vehicle Type *</label>
-                                                <select id="car-type" class="form-control" required>
-                                                    <option value="">Select Type</option>
-                                                    <option value="sedan">Sedan</option>
-                                                    <option value="suv">SUV</option>
-                                                    <option value="coupe">Coupe</option>
-                                                    <option value="convertible">Convertible</option>
-                                                    <option value="hatchback">Hatchback</option>
-                                                    <option value="pickup">Pickup Truck</option>
-                                                    <option value="luxury">Luxury</option>
-                                                    <option value="sports">Sports Car</option>
-                                                </select>
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="car-transmission">Transmission *</label>
-                                                <select id="car-transmission" class="form-control" required>
-                                                    <option value="">Select Transmission</option>
-                                                    <option value="automatic">Automatic</option>
-                                                    <option value="manual">Manual</option>
-                                                    <option value="semi-automatic">Semi-Automatic</option>
-                                                </select>
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="car-fuel">Fuel Type *</label>
-                                                <select id="car-fuel" class="form-control" required>
-                                                    <option value="">Select Fuel Type</option>
-                                                    <option value="petrol">Petrol</option>
-                                                    <option value="diesel">Diesel</option>
-                                                    <option value="electric">Electric</option>
-                                                    <option value="hybrid">Hybrid</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                        
-                                        <div class="form-row">
-                                            <div class="form-group">
-                                                <label for="car-seats">Number of Seats *</label>
-                                                <input type="number" id="car-seats" class="form-control" min="1" max="10" value="5" required>
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="car-bags">Luggage Capacity (bags) *</label>
-                                                <input type="number" id="car-bags" class="form-control" min="1" max="6" value="2" required>
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="car-mileage">Mileage (km per liter)</label>
-                                                <input type="number" id="car-mileage" class="form-control" min="5" max="30" value="12">
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Rental Information -->
-                                    <div class="form-section">
-                                        <h6 class="form-section-title">Rental Information</h6>
-                                        <div class="form-row">
-                                            <div class="form-group">
-                                                <label for="car-price">Daily Rental Price ($) *</label>
-                                                <input type="number" id="car-price" class="form-control" min="10" max="1000" step="0.01" required>
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="car-quantity">Initial Quantity *</label>
-                                                <div class="quantity-control">
-                                                    <button type="button" class="qty-btn" id="decrease-qty" onclick="decreaseQuantity()">-</button>
-                                                    <input type="number" id="car-quantity" class="form-control qty-input" value="1" min="1" max="20" required>
-                                                    <button type="button" class="qty-btn" id="increase-qty" onclick="increaseQuantity()">+</button>
+                                            <div class="room-info">
+                                                <div class="room-name"><?php echo htmlspecialchars($room['TYPENAME']); ?></div>
+                                                <div class="room-details">
+                                                    <span>$<?php echo number_format($room['PRICE_PER_NIGHT'], 2); ?>/night</span>
+                                                    <span>Room <?php echo $room['ROOM_NUMBER']; ?></span>
+                                                </div>
+                                                <div class="room-specs">
+                                                    <span class="spec-badge">
+                                                        <i class="fas fa-user me-1"></i><?php echo $room['MAXOCCUPANCY']; ?> guests
+                                                    </span>
+                                                    <span class="spec-badge">
+                                                        <i class="fas fa-bed me-1"></i><?php echo $room['bed']; ?> bed<?php echo $room['bed'] > 1 ? 's' : ''; ?>
+                                                    </span>
+                                                    <span class="spec-badge">
+                                                        <i class="fas fa-bath me-1"></i><?php echo $room['toillet']; ?> bathroom<?php echo $room['toillet'] > 1 ? 's' : ''; ?>
+                                                    </span>
+                                                </div>
+                                                <div class="room-actions">
+                                                    <a href="?delete_room=<?php echo $room['ROOMID']; ?>" 
+                                                       class="btn-delete"
+                                                       onclick="return confirm('Are you sure you want to delete this room? This action cannot be undone.')">
+                                                        <i class="fas fa-trash me-1"></i>Delete
+                                                    </a>
                                                 </div>
                                             </div>
-                                            
+                                        </div>
+                                        <?php endwhile; ?>
+                                    <?php else: ?>
+                                    <div class="col-12">
+                                        <div class="empty-state">
+                                            <div class="empty-icon">
+                                                <i class="fas fa-bed"></i>
+                                            </div>
+                                            <h5>No Rooms Found</h5>
+                                            <p>There are no rooms in the inventory.</p>
                                         </div>
                                     </div>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
 
-                                    <!-- Additional Information -->
+                            <!-- Add New Room Tab -->
+                            <div id="add-room" class="room-tab-content">
+                                <h5 class="mb-4">Add New Room to Inventory</h5>
+
+                                <form id="addRoomForm" class="add-room-form" method="POST" action="">
+                                    <input type="hidden" name="add_room" value="1">
+                                    
+                                    <!-- Room Information -->
                                     <div class="form-section">
-                                        <h6 class="form-section-title">Additional Information</h6>
-                                        <div class="form-group">
-                                            <label for="car-image">Car Image URL</label>
-                                            <input type="url" id="car-image" class="form-control" placeholder="https://example.com/car-image.jpg">
-                                            <small class="text-muted">Leave empty to use default image</small>
+                                        <h6 class="form-section-title">Room Information</h6>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="form-group">
+                                                    <label for="room_type_id">Room Type *</label>
+                                                    <select id="room_type_id" name="room_type_id" class="form-control" required>
+                                                        <option value="">Select Room Type</option>
+                                                        <?php 
+                                                        $room_types_result->data_seek(0); // Reset pointer
+                                                        while($room_type = $room_types_result->fetch_assoc()): ?>
+                                                        <option value="<?php echo $room_type['ROOMTYPEID']; ?>">
+                                                            <?php echo htmlspecialchars($room_type['TYPENAME']); ?> - 
+                                                            Max <?php echo $room_type['MAXOCCUPANCY']; ?> guests, 
+                                                            <?php echo $room_type['bed']; ?> bed(s), 
+                                                            <?php echo $room_type['toillet']; ?> bathroom(s)
+                                                        </option>
+                                                        <?php endwhile; ?>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="form-group">
+                                                    <label for="room_number">Room Number *</label>
+                                                    <input type="number" id="room_number" name="room_number" class="form-control" 
+                                                           min="1" max="999" required placeholder="e.g., 101">
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div class="form-group">
-                                            <label for="car-features">Features (comma separated)</label>
-                                            <input type="text" id="car-features" class="form-control" placeholder="GPS, Bluetooth, Air Conditioning, etc.">
-                                        </div>
-                                        <div class="form-group">
-                                            <label for="car-description">Description</label>
-                                            <textarea id="car-description" class="form-control" rows="3" placeholder="Brief description of the car..."></textarea>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="form-group">
+                                                    <label for="price_per_night">Price Per Night ($) *</label>
+                                                    <input type="number" id="price_per_night" name="price_per_night" class="form-control" 
+                                                           min="50" max="5000" step="0.01" required placeholder="e.g., 150.00">
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
 
                                     <!-- Submit Button -->
                                     <div class="text-end mt-4">
-                                        <button type="button" class="btn btn-secondary me-2" onclick="resetCarForm()">Reset Form</button>
+                                        <button type="reset" class="btn btn-secondary me-2">Reset Form</button>
                                         <button type="submit" class="btn-submit">
-                                            <i class="fas fa-plus-circle me-2"></i>Add Car to Inventory
+                                            <i class="fas fa-plus-circle me-2"></i>Add Room to Inventory
                                         </button>
                                     </div>
                                 </form>
                             </div>
 
-                            <!-- Manage Quantity Tab -->
-                            <div id="manage-quantity" class="car-tab-content">
-                                <h5 class="mb-4">Update Car Quantities</h5>
-                                <p class="text-muted mb-4">Adjust the available quantity for each car in your fleet</p>
+                            <!-- Manage Status Tab -->
+                            <div id="manage-status" class="room-tab-content">
+                                <h5 class="mb-4">Update Room Status</h5>
+                                <p class="text-muted mb-4">Update the status and availability for each room</p>
 
-                                <div class="table-responsive">
-                                    <table class="table table-hover">
-                                        <thead>
-                                            <tr>
-                                                <th>Car Model</th>
-                                                <th>Current Quantity</th>
-                                                <th>Available</th>
-                                                <th>Rented</th>
-                                                <th>Update Quantity</th>
-                                                
-                                            </tr>
-                                        </thead>
-                                        <tbody id="quantity-table">
-                                            <!-- Car 1 Quantity -->
-                                            <tr data-car-id="CAR-001">
-                                                <td>
-                                                    <strong>Jeep Renegade</strong><br>
-                                                    <small class="text-muted">ID: CAR-001</small>
-                                                </td>
-                                                <td>
-                                                    <span class="badge bg-primary">5</span>
-                                                </td>
-                                                <td>
-                                                    <span class="badge bg-success">3</span>
-                                                </td>
-                                                <td>
-                                                    <span class="badge bg-info">2</span>
-                                                </td>
-                                                <td>
-                                                    <div class="input-group input-group-sm" style="width: 150px;">
-                                                        <input type="number" class="form-control qty-update" value="5" min="0" max="50" id="qty-CAR-001">
-                                                        <button class="btn btn-outline-primary" type="button" onclick="updateQuantity('CAR-001')">
+                                <?php 
+                                // Re-fetch rooms for status management
+                                $rooms_status_stmt = $connect->prepare("
+                                    SELECT 
+                                        rm.ROOMID,
+                                        rm.ROOM_NUMBER,
+                                        rm.STATUS,
+                                        rm.PRICE_PER_NIGHT,
+                                        rt.TYPENAME
+                                    FROM room rm
+                                    JOIN room_type rt ON rm.ROOMTYPEID = rt.ROOMTYPEID
+                                    ORDER BY rm.ROOM_NUMBER ASC
+                                ");
+                                $rooms_status_stmt->execute();
+                                $rooms_status_result = $rooms_status_stmt->get_result();
+                                ?>
+                                
+                                <?php if($rooms_status_result->num_rows > 0): ?>
+                                <form method="POST" action="">
+                                    <input type="hidden" name="update_room_status" value="1">
+                                    <div class="table-responsive">
+                                        <table class="table table-hover">
+                                            <thead>
+                                                <tr>
+                                                    <th>Room Details</th>
+                                                    <th>Current Status</th>
+                                                    <th>Update Status</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="status-table">
+                                                <?php while($room = $rooms_status_result->fetch_assoc()): 
+                                                    $status_badge = '';
+                                                    switch($room['STATUS']) {
+                                                        case 'available':
+                                                            $status_badge = 'bg-success';
+                                                            break;
+                                                        case 'Reserved':
+                                                            $status_badge = 'bg-warning';
+                                                            break;
+                                                        default:
+                                                            $status_badge = 'bg-secondary';
+                                                    }
+                                                ?>
+                                                <tr>
+                                                    <td>
+                                                        <strong><?php echo htmlspecialchars($room['TYPENAME']); ?></strong><br>
+                                                        <small class="text-muted">Room <?php echo $room['ROOM_NUMBER']; ?>, $<?php echo number_format($room['PRICE_PER_NIGHT'], 2); ?>/night</small>
+                                                    </td>
+                                                    <td>
+                                                        <span class="badge <?php echo $status_badge; ?>"><?php echo htmlspecialchars($room['STATUS']); ?></span>
+                                                    </td>
+                                                    <td>
+                                                        <select name="room_status[<?php echo $room['ROOMID']; ?>]" class="form-select form-select-sm">
+                                                            <option value="available" <?php echo $room['STATUS'] == 'available' ? 'selected' : ''; ?>>Available</option>
+                                                            <option value="Reserved" <?php echo $room['STATUS'] == 'Reserved' ? 'selected' : ''; ?>>Occupied</option>
+                                                        </select>
+                                                    </td>
+                                                    <td>
+                                                        <input type="hidden" name="room_id" value="<?php echo $room['ROOMID']; ?>">
+                                                        <button type="submit" class="btn btn-sm btn-outline-primary">
                                                             Update
                                                         </button>
-                                                    </div>
-                                                </td>
-                                                
-                                            </tr>
-                                            
-                                            <!-- Car 2 Quantity -->
-                                            <tr data-car-id="CAR-002">
-                                                <td>
-                                                    <strong>BMW M2 Competition</strong><br>
-                                                    <small class="text-muted">ID: CAR-002</small>
-                                                </td>
-                                                <td>
-                                                    <span class="badge bg-primary">2</span>
-                                                </td>
-                                                <td>
-                                                    <span class="badge bg-warning">1</span>
-                                                </td>
-                                                <td>
-                                                    <span class="badge bg-info">1</span>
-                                                </td>
-                                                <td>
-                                                    <div class="input-group input-group-sm" style="width: 150px;">
-                                                        <input type="number" class="form-control qty-update" value="2" min="0" max="50" id="qty-CAR-002">
-                                                        <button class="btn btn-outline-primary" type="button" onclick="updateQuantity('CAR-002')">
-                                                            Update
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                                
-                                            </tr>
-                                            
-                                            <!-- Car 3 Quantity -->
-                                            <tr data-car-id="CAR-003">
-                                                <td>
-                                                    <strong>Toyota Camry</strong><br>
-                                                    <small class="text-muted">ID: CAR-003</small>
-                                                </td>
-                                                <td>
-                                                    <span class="badge bg-primary">8</span>
-                                                </td>
-                                                <td>
-                                                    <span class="badge bg-success">5</span>
-                                                </td>
-                                                <td>
-                                                    <span class="badge bg-info">3</span>
-                                                </td>
-                                                <td>
-                                                    <div class="input-group input-group-sm" style="width: 150px;">
-                                                        <input type="number" class="form-control qty-update" value="8" min="0" max="50" id="qty-CAR-003">
-                                                        <button class="btn btn-outline-primary" type="button" onclick="updateQuantity('CAR-003')">
-                                                            Update
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                                
-                                            </tr>
-                                            
-                                            <!-- Car 4 Quantity -->
-                                            <tr data-car-id="CAR-004">
-                                                <td>
-                                                    <strong>Ford F-150</strong><br>
-                                                    <small class="text-muted">ID: CAR-004</small>
-                                                </td>
-                                                <td>
-                                                    <span class="badge bg-primary">3</span>
-                                                </td>
-                                                <td>
-                                                    <span class="badge bg-danger">0</span>
-                                                </td>
-                                                <td>
-                                                    <span class="badge bg-info">3</span>
-                                                </td>
-                                                <td>
-                                                    <div class="input-group input-group-sm" style="width: 150px;">
-                                                        <input type="number" class="form-control qty-update" value="3" min="0" max="50" id="qty-CAR-004">
-                                                        <button class="btn btn-outline-primary" type="button" onclick="updateQuantity('CAR-004')">
-                                                            Update
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                                
-                                            </tr>
-                                        </tbody>
-                                    </table>
+                                                    </td>
+                                                </tr>
+                                                <?php endwhile; ?>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </form>
+                                <?php else: ?>
+                                <div class="empty-state">
+                                    <div class="empty-icon">
+                                        <i class="fas fa-bed"></i>
+                                    </div>
+                                    <h5>No Rooms Found</h5>
+                                    <p>There are no rooms in the inventory.</p>
                                 </div>
+                                <?php endif; ?>
+                                <?php $rooms_status_stmt->close(); ?>
                             </div>
                         </div>
                     </div>
@@ -2044,7 +2023,7 @@
 
                             <div class="d-flex justify-content-center gap-3">
                                 <button class="btn btn-update" onclick="cancelSignout()">Cancel</button>
-                                <button class="btn btn-confirm-signout" onclick="confirmSignout()">Sign Out</button>
+                                <a href="?logout=1" class="btn btn-confirm-signout">Sign Out</a>
                             </div>
                         </div>
                     </div>
@@ -2056,22 +2035,19 @@
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Simple JavaScript for UI interactions (no dynamic data loading)
-        
-        // Navigation functionality
         document.addEventListener('DOMContentLoaded', function () {
             // Menu button click handlers
             const menuButtons = document.querySelectorAll('.menu-button');
             const contentSections = document.querySelectorAll('.content-section');
-            
+
             menuButtons.forEach(button => {
                 button.addEventListener('click', function () {
                     const sectionId = this.getAttribute('data-section');
-                    
+
                     // Update active menu button
                     menuButtons.forEach(btn => btn.classList.remove('active'));
                     this.classList.add('active');
-                    
+
                     // Show corresponding content section
                     contentSections.forEach(section => {
                         section.classList.remove('active');
@@ -2081,95 +2057,167 @@
                     });
                 });
             });
+
+            // Initialize first tab in room management
+            switchRoomTab('view-rooms');
             
-            // Initialize first tab in car management
-            switchCarTab('view-cars');
+            // Auto-hide alerts after 5 seconds
+            setTimeout(() => {
+                const alerts = document.querySelectorAll('.alert');
+                alerts.forEach(alert => {
+                    if (alert.classList.contains('show')) {
+                        const bsAlert = new bootstrap.Alert(alert);
+                        bsAlert.close();
+                    }
+                });
+            }, 5000);
         });
-        
-        // Car Management Tabs
-        function switchCarTab(tabId) {
+
+        // Room Management Tabs
+        function switchRoomTab(tabId) {
             // Update active tab
-            document.querySelectorAll('.car-tab').forEach(tab => {
+            document.querySelectorAll('.room-tab').forEach(tab => {
                 tab.classList.remove('active');
                 if (tab.getAttribute('data-tab') === tabId) {
                     tab.classList.add('active');
                 }
             });
-            
+
             // Show corresponding content
-            document.querySelectorAll('.car-tab-content').forEach(content => {
+            document.querySelectorAll('.room-tab-content').forEach(content => {
                 content.classList.remove('active');
                 if (content.id === tabId) {
                     content.classList.add('active');
                 }
             });
         }
-        
-        // Order filtering
-        function filterOrders(status) {
-            const orders = document.querySelectorAll('.order-item');
-            const emptyState = document.getElementById('empty-orders');
-            
+
+        // Booking filtering
+        function filterBookings(status) {
+            const bookings = document.querySelectorAll('#bookings-container .booking-item');
+            const emptyState = document.createElement('div');
+            emptyState.className = 'empty-state';
+            emptyState.innerHTML = `
+                <div class="empty-icon">
+                    <i class="fas fa-clipboard-list"></i>
+                </div>
+                <h5>No bookings found</h5>
+                <p>There are no bookings matching your current filter.</p>
+            `;
+
+            // Remove existing empty state if any
+            const existingEmptyState = document.querySelector('#bookings-container .empty-state');
+            if (existingEmptyState) {
+                existingEmptyState.remove();
+            }
+
             // Update filter button active state
             document.querySelectorAll('.filter-btn').forEach(btn => {
                 btn.classList.remove('active');
-                if (btn.textContent.includes(status.charAt(0).toUpperCase() + status.slice(1)) || 
-                    (status === 'all' && btn.textContent.includes('All Orders'))) {
+                if ((status === 'all' && btn.textContent.includes('All Bookings')) ||
+                    (status === 'Confirmed' && btn.textContent.includes('Pending')) ||
+                    (status === 'Completed' && btn.textContent.includes('Confirmed')) ||
+                    (status === 'Cancelled' && btn.textContent.includes('Cancelled'))) {
                     btn.classList.add('active');
                 }
             });
-            
+
             let visibleCount = 0;
-            
-            orders.forEach(order => {
-                const orderStatus = order.getAttribute('data-status');
-                if (status === 'all' || orderStatus === status) {
-                    order.style.display = 'block';
+
+            bookings.forEach(booking => {
+                const bookingStatus = booking.getAttribute('data-status');
+                if (status === 'all' || bookingStatus === status) {
+                    booking.style.display = 'block';
                     visibleCount++;
                 } else {
-                    order.style.display = 'none';
+                    booking.style.display = 'none';
                 }
             });
-            
+
             // Show/hide empty state
-            if (visibleCount === 0) {
-                emptyState.style.display = 'block';
-            } else {
-                emptyState.style.display = 'none';
+            if (visibleCount === 0 && bookings.length > 0) {
+                document.getElementById('bookings-container').appendChild(emptyState);
             }
         }
-        
-        
-        
-        // Car filtering
-        function filterCars() {
-            const filter = document.getElementById('car-filter').value;
-            const cars = document.querySelectorAll('.car-item');
-            const emptyState = document.getElementById('empty-cars');
-            
+
+        // Room filtering
+        function filterRooms() {
+            const filter = document.getElementById('room-filter').value;
+            const rooms = document.querySelectorAll('#room-list-container .room-item');
+            const emptyState = document.createElement('div');
+            emptyState.className = 'col-12 empty-state';
+            emptyState.innerHTML = `
+                <div class="empty-icon">
+                    <i class="fas fa-bed"></i>
+                </div>
+                <h5>No rooms found</h5>
+                <p>There are no rooms matching your current filter.</p>
+            `;
+
+            // Remove existing empty state if any
+            const existingEmptyState = document.querySelector('#room-list-container .empty-state');
+            if (existingEmptyState) {
+                existingEmptyState.remove();
+            }
+
             let visibleCount = 0;
-            
-            cars.forEach(car => {
-                const status = car.getAttribute('data-status');
+
+            rooms.forEach(room => {
+                const status = room.getAttribute('data-status');
                 if (filter === 'all' || status === filter) {
-                    car.style.display = 'block';
+                    room.style.display = 'block';
                     visibleCount++;
                 } else {
-                    car.style.display = 'none';
+                    room.style.display = 'none';
                 }
             });
-            
+
             // Show/hide empty state
-            if (visibleCount === 0) {
-                emptyState.style.display = 'block';
-            } else {
-                emptyState.style.display = 'none';
+            if (visibleCount === 0 && rooms.length > 0) {
+                document.getElementById('room-list-container').innerHTML = '';
+                document.getElementById('room-list-container').appendChild(emptyState);
             }
         }
-        
-        
-        
+
+        // Sign out functions
+        function cancelSignout() {
+            // Go back to dashboard
+            document.querySelector('[data-section="dashboard"]').click();
+        }
+
+        // Show notification (for future enhancements)
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.className = `alert alert-${type} alert-dismissible fade show`;
+            notification.innerHTML = `
+                <i class="fas fa-${type === 'success' ? 'check' : 'exclamation'}-circle me-2"></i>
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            const container = document.querySelector('.alert-container') || createAlertContainer();
+            container.appendChild(notification);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                if (notification.parentElement) {
+                    notification.remove();
+                }
+            }, 5000);
+        }
+
+        function createAlertContainer() {
+            const container = document.createElement('div');
+            container.className = 'alert-container';
+            document.body.appendChild(container);
+            return container;
+        }
     </script>
 </body>
-
 </html>
+<?php
+// Close database connections
+if (isset($connect)) {
+    $connect->close();
+}
+?>
